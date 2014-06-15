@@ -137,7 +137,7 @@ public class UriImage {
                         "Query on " + uri + " returns 0 or multiple rows.");
             }
 
-            String filePath;
+            String filePath = "";
             if (ImageModel.isMmsUri(uri)) {
                 filePath = c.getString(c.getColumnIndexOrThrow(Part.FILENAME));
                 if (TextUtils.isEmpty(filePath)) {
@@ -147,8 +147,12 @@ public class UriImage {
                 mContentType = c.getString(
                         c.getColumnIndexOrThrow(Part.CONTENT_TYPE));
             } else {
-                filePath = uri.getPath();
                 try {
+                	int actual_image_column_index = c.getColumnIndexOrThrow(Images.Media.DATA);  
+                	filePath = c.getString(actual_image_column_index);
+                	if (TextUtils.isEmpty(filePath)) {
+                		filePath = uri.getPath();
+    				}
                     mContentType = c.getString(
                             c.getColumnIndexOrThrow(Images.Media.MIME_TYPE)); // mime_type
                 } catch (IllegalArgumentException e) {

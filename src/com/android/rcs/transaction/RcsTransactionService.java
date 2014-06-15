@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.DatabaseUtils;
@@ -22,6 +23,9 @@ import android.widget.Toast;
 import com.android.mms.LogTag;
 import com.android.mms.R;
 import com.android.mms.util.MultiSimUtility;
+import com.android.rcs.message.RcsNewFileTransferInvateMessage;
+import com.android.rcs.util.RcsFileUtil;
+import com.android.rcs.util.RcsMiscInterface;
 
 public class RcsTransactionService extends Service {
 	private static final String TAG = "TransactionService";
@@ -113,32 +117,12 @@ public class RcsTransactionService extends Service {
 		// Start up the thread running the service. Note that we create a
 		// separate thread because the service normally runs in the process's
 		// main thread, which we don't want to block.
-		HandlerThread thread = new HandlerThread("TransactionService");
+		HandlerThread thread = new HandlerThread("RcsTransactionService");
 		thread.start();
 
 		mServiceLooper = thread.getLooper();
 		mServiceHandler = new ServiceHandler(mServiceLooper);
 	}
-
-	class TxnRequest {
-		String txnId;
-		int destSub;
-		int originSub;
-		boolean isFailed = false;
-
-		TxnRequest(String id, int destSub, int originSub) {
-			this.txnId = id;
-			this.destSub = destSub;
-			this.originSub = originSub;
-		}
-
-		public String toString() {
-			return "TxnRequest=[txnId=" + txnId + ", destSub=" + destSub
-					+ ", originSub=" + originSub + ", isFailed=" + isFailed
-					+ "]";
-		}
-
-	};
 
 	private String getTxnIdFromDb(Uri uri) {
 		String txnId = null;
@@ -202,36 +186,16 @@ public class RcsTransactionService extends Service {
 	public void onNewIntent(Intent intent, int serviceId) {
 		Bundle extras = intent.getExtras();
 		String action = intent.getAction();
-		if ((ACTION_ONALARM.equals(action)
-				|| ACTION_ENABLE_AUTO_RETRIEVE.equals(action) || (extras == null))
-				|| ((extras != null) && !extras.containsKey("uri"))) {
-
-		} else {
-			if (Log.isLoggable(LogTag.TRANSACTION, Log.VERBOSE)) {
-				Log.v(TAG, "onNewIntent: launch transaction...");
-			}
-			String uriStr = intent.getStringExtra("uri");
-			int destSub = intent.getIntExtra(Mms.SUB_ID, -1);
-			int originSub = intent.getIntExtra(MultiSimUtility.ORIGIN_SUB_ID,
-					-1);
-
-			Uri uri = Uri.parse(uriStr);
-			int subId = getSubIdFromDb(uri);
-			String txnId = getTxnIdFromDb(uri);
-
-			if (txnId == null) {
-				Log.d(TAG, "Transaction already over.");
-				return;
-			}
-
-			Log.d(TAG, "SubId from DB= " + subId);
-			Log.d(TAG, "Destination Sub = " + destSub);
-			Log.d(TAG, "Origin Sub = " + originSub);
-
-			// For launching NotificationTransaction and test purpose.
-			Bundle args = new Bundle(intent.getExtras());
-			launchTransaction(serviceId, args);
+		if (Log.isLoggable(LogTag.TRANSACTION, Log.VERBOSE)) {
+			Log.v(TAG, "onNewIntent: launch transaction...");
 		}
+		String uriStr = intent.getStringExtra("uri");
+		int destSub = intent.getIntExtra(Mms.SUB_ID, -1);
+		int originSub = intent.getIntExtra(MultiSimUtility.ORIGIN_SUB_ID, -1);
+
+		// For launching NotificationTransaction and test purpose.
+		Bundle args = new Bundle(intent.getExtras());
+		launchTransaction(serviceId, args);
 	}
 
 	private void launchTransaction(int serviceId, Bundle txnBundle) {
@@ -307,21 +271,21 @@ public class RcsTransactionService extends Service {
 				try {
 					Bundle args = (Bundle) msg.obj;
 
-					int transactionType = -1;
+					int transactionType = args.getInt(RcsTransaction.RCS_TRANSACTION_TYPE);
 
 					// Create appropriate transaction
 					switch (transactionType) {
-					case RcsTransaction.RCS_SEND_IM_TRANSACTION:
+					case RcsTransaction.RCS_SEND_SESSION_IM_TRANSACTION:
 					case RcsTransaction.RCS_SEND_PAGE_IM_TRANSACTION:
 					case RcsTransaction.RCS_SEND_LARGE_IM_TRANSACTION:
-						transaction = new RcsImTransaction(RcsTransactionService.this, transactionType);
+						transaction = new RcsImTransaction(RcsTransactionService.this, transactionType, args);
 						break;
 					case RcsTransaction.RCS_SEND_FILE_TRANSACTION:
 					case RcsTransaction.RCS_SEND_GRP_FILE_TRANSACTION:
 					case RcsTransaction.RCS_RECEIVE_FILE_TRANSACTION:
 					case RcsTransaction.RCS_RECEIVE_GRP_FILE_TRANSACTION:
 						transaction = new RcsFileTransaction(
-								RcsTransactionService.this, transactionType);
+								RcsTransactionService.this, transactionType, args);
 						break;
 					default:
 						Log.w(TAG, "Invalid transaction type: " + serviceId);
@@ -433,5 +397,103 @@ public class RcsTransactionService extends Service {
 			}
 		}
 
+	}
+	
+	/**
+	 * @param sendType 发送page/session/large
+	 * */
+	public static void sendImMessage(Context context, int cookieId, int sessionId, int sendType, String uri, String message) {
+		Intent sendIntent = new Intent();
+		sendIntent.setClass(context, RcsTransactionService.class);
+		
+		Bundle bundle = new Bundle();
+		bundle.putInt(RcsTransaction.RCS_COOKIE_ID, cookieId);
+		bundle.putInt(RcsTransaction.RCS_SESSION_ID, sessionId);
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_TYPE, sendType);
+		bundle.putString(RcsTransaction.RCS_SEND_URI, uri);
+		bundle.putString(RcsTransaction.RCS_SEND_TEXT, message);
+		
+		sendIntent.putExtras(bundle);
+		context.startService(sendIntent);
+		
+	}
+	
+	/**
+	 * @param sendType 发送page/session/large
+	 * */
+	public static void sendFile(Context context, int sendType, int cookieId, String uri, String title, String filePath, String fileType, int phoneId) {
+		Intent sendIntent = new Intent();
+		sendIntent.setClass(context, RcsTransactionService.class);
+		
+		Bundle bundle = new Bundle();
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_TYPE, sendType);//RcsTransaction.RCS_SEND_FILE_TRANSACTION
+		bundle.putInt(RcsTransaction.RCS_COOKIE_ID, cookieId);
+		bundle.putString(RcsTransaction.RCS_SEND_URI, uri);
+		bundle.putString(RcsTransaction.RCS_SEND_TITLE, title);
+		
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_NAME, filePath);
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_TYPE, fileType);
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_PHONE_ID, phoneId);
+		
+		sendIntent.putExtras(bundle);
+		context.startService(sendIntent);
+		
+	}
+	
+	/**
+	 * @param sendType 发送page/session/large
+	 * */
+	public static void sendGrpFile(Context context, int sendType, int cookieId, String pcGroupChatId, String pcSessIdentity, String filePath, String fileType, int phoneId) {
+		Intent sendIntent = new Intent();
+		sendIntent.setClass(context, RcsTransactionService.class);
+		
+		Bundle bundle = new Bundle();
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_TYPE, sendType);//RcsTransaction.RCS_SEND_FILE_TRANSACTION
+		bundle.putInt(RcsTransaction.RCS_COOKIE_ID, cookieId);
+		bundle.putString(RcsTransaction.RCS_FILE_GRP_CHAT_ID, pcGroupChatId);
+		bundle.putString(RcsTransaction.RCS_FILE_SESS_IDENTITY, pcSessIdentity);
+		
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_NAME, filePath);
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_TYPE, fileType);
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_PHONE_ID, phoneId);
+		
+		sendIntent.putExtras(bundle);
+		context.startService(sendIntent);
+		
+	}
+	
+	/**
+	 * @param sendType 发送page/session/large
+	 * */
+	public static int acceptFile(Context context, RcsNewFileTransferInvateMessage fileInvate) {
+		String uri = fileInvate.getUri();
+		String fileName = fileInvate.getFileName();
+		Intent sendIntent = new Intent();
+		int sessId = fileInvate.getSessId();
+		int phoneId = fileInvate.getPhoneId();
+		int userType = fileInvate.getUserType();
+		int size = fileInvate.getFileSize();
+		
+		String filePath = RcsFileUtil.getImFilepath() + fileName;
+		String fileType = RcsFileUtil.getFileTypeFromUri(filePath);
+		
+		int msgId = RcsFileUtil.saveAcceptFileInDb(context, fileInvate);
+		sendIntent.setClass(context, RcsTransactionService.class);
+		
+		Bundle bundle = new Bundle();
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_TYPE, RcsTransaction.RCS_RECEIVE_FILE_TRANSACTION);//RcsTransaction.RCS_SEND_FILE_TRANSACTION
+		bundle.putInt(RcsTransaction.RCS_COOKIE_ID, msgId);
+		bundle.putString(RcsTransaction.RCS_SEND_URI, uri);
+		bundle.putInt(RcsTransaction.RCS_SESSION_ID, sessId);
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_NAME, filePath);
+		bundle.putString(RcsTransaction.RCS_SEND_FILE_TYPE, fileType);
+		bundle.putInt(RcsTransaction.RCS_FILE_SIZE, size);
+		bundle.putInt(RcsTransaction.RCS_TRANSACTION_PHONE_ID, phoneId);
+
+		sendIntent.putExtras(bundle);
+		context.startService(sendIntent);
+		
+		return msgId;
+		
 	}
 }

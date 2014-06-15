@@ -73,6 +73,7 @@ public class MmsConfig {
     private static int mMinimumSlideElementDuration = 7;        // default to 7 sec
     private static boolean mNotifyWapMMSC = false;
     private static boolean mAllowAttachAudio = true;
+    private static boolean mSuportRcs = true;
 
     // If mEnableMultipartSMS is true, long sms messages are always sent as multi-part sms
     // messages, with no checked limit on the number of segments.
@@ -124,12 +125,13 @@ public class MmsConfig {
     }
 
     public static boolean isSmsEnabled(Context context) {
-        String defaultSmsApplication = Telephony.Sms.getDefaultSmsPackage(context);
-
-        if (defaultSmsApplication != null && defaultSmsApplication.equals(MMS_APP_PACKAGE)) {
-            return true;
-        }
-        return false;
+    	return true;
+//        String defaultSmsApplication = Telephony.Sms.getDefaultSmsPackage(context);
+//
+//        if (defaultSmsApplication != null && defaultSmsApplication.equals(MMS_APP_PACKAGE)) {
+//            return true;
+//        }
+//        return false;
     }
 
     public static boolean isSmsPromoDismissed(Context context) {
@@ -290,6 +292,11 @@ public class MmsConfig {
         return mEnableGroupMms;
     }
 
+    public static boolean isSuportRcs() {
+        return mSuportRcs;
+    }
+
+    
     public static final void beginDocument(XmlPullParser parser, String firstElementName) throws XmlPullParserException, IOException
     {
         int type;

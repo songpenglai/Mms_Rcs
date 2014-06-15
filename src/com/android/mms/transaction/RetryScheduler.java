@@ -294,17 +294,17 @@ public class RetryScheduler implements Observer {
 
 
                     Intent service;
-                    if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-                        service = new Intent(TransactionService.ACTION_ONALARM,
-                                        null, context,
-                                        com.android.mms.ui.SelectMmsSubscription.class);
-                        service.putExtra(Mms.SUB_ID, destSubId); //destination sub id
-                        service.putExtra(MultiSimUtility.ORIGIN_SUB_ID,
-                                MultiSimUtility.getCurrentDataSubscription(context));
-                    } else {
+//                    if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+//                        service = new Intent(TransactionService.ACTION_ONALARM,
+//                                        null, context,
+//                                        com.android.mms.ui.SelectMmsSubscription.class);
+//                        service.putExtra(Mms.SUB_ID, destSubId); //destination sub id
+//                        service.putExtra(MultiSimUtility.ORIGIN_SUB_ID,
+//                                MultiSimUtility.getCurrentDataSubscription(context));
+//                    } else {
                         service = new Intent(TransactionService.ACTION_ONALARM,
                                         null, context, TransactionService.class);
-                    }
+//                    }
                     PendingIntent operation = PendingIntent.getService(
                             context, 0, service, PendingIntent.FLAG_ONE_SHOT);
                     AlarmManager am = (AlarmManager) context.getSystemService(

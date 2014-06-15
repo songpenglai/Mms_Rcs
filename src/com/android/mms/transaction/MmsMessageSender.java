@@ -128,16 +128,16 @@ public class MmsMessageSender implements MessageSender {
         intent.putExtra(Mms.SUB_ID, mSubscription); //destination sub id
         intent.putExtra(MultiSimUtility.ORIGIN_SUB_ID,
                 MultiSimUtility.getCurrentDataSubscription(mContext));
-        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-
-            Intent silentIntent = new Intent(mContext,
-                    com.android.mms.ui.SelectMmsSubscription.class);
-            silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            silentIntent.putExtras(intent); //copy all extras
-            mContext.startService(silentIntent);
-        } else {
+//        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+//
+//            Intent silentIntent = new Intent(mContext,
+//                    com.android.mms.ui.SelectMmsSubscription.class);
+//            silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//            silentIntent.putExtras(intent); //copy all extras
+//            mContext.startService(silentIntent);
+//        } else {
             mContext.startService(intent);
-        }
+//        }
 
         return true;
     }

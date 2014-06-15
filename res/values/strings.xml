@@ -393,6 +393,10 @@
     <string name="pref_title_mms_retrieval_during_roaming">Roaming auto-retrieve</string>
     <!-- Settings item description for boolean MMS auto-retrieve while roaming option -->
     <string name="pref_summary_mms_retrieval_during_roaming">Automatically retrieve messages while roaming</string>
+    <string name="pref_rcs_settings_title">"RCS settings"</string>
+    <string name="pref_title_im_type">"IM type"</string>
+    <string name="pref_title_im_type_page">"page mode"</string>
+    <string name="pref_title_im_type_session">"session mode"</string>
 
     <!-- Confirm Delete -->
     <!-- Delete confirmation dialog title -->

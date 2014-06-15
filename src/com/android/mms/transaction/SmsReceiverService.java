@@ -79,7 +79,7 @@ public class SmsReceiverService extends Service {
 
     private ServiceHandler mServiceHandler;
     private Looper mServiceLooper;
-    private boolean[] mSending = new boolean[MSimTelephonyManager.getDefault().getPhoneCount()];
+    private boolean[] mSending = new boolean[1];//MSimTelephonyManager.getDefault().getPhoneCount()
 
     public static final String MESSAGE_SENT_ACTION =
         "com.android.mms.transaction.MESSAGE_SENT";
@@ -253,7 +253,7 @@ public class SmsReceiverService extends Service {
         // Inactive messages includes all messages in outbox and queued box.
         moveOutboxMessagesToQueuedBox();
         // Process queued messages on all SUB's
-        for (int i = 0; i < MSimTelephonyManager.getDefault().getPhoneCount(); i++) {
+        for (int i = 0; i < 1; i++) {//MSimTelephonyManager.getDefault().getPhoneCount()
             if (!mSending[i]) {
                 sendFirstQueuedMessage(i);
             }
@@ -330,7 +330,7 @@ public class SmsReceiverService extends Service {
             // In case of MSIM don't unregister service state change if there are any messages
             // pending for process on other subscriptions. There may be a chance of other
             // subscription is register and waiting for sevice state changes to process the message.
-            if (!MSimTelephonyManager.getDefault().isMultiSimEnabled() ||
+            if (//!MSimTelephonyManager.getDefault().isMultiSimEnabled() ||
                     isUnRegisterAllowed(subscription)) {
                 unRegisterForServiceStateChanges();
             }
@@ -435,7 +435,7 @@ public class SmsReceiverService extends Service {
 
         // Send any queued messages that were waiting from before the reboot.
         // // Process queued messages on all SUB's
-        for (int i = 0; i < MSimTelephonyManager.getDefault().getPhoneCount(); i++) {
+        for (int i = 0; i < 1; i++) {//MSimTelephonyManager.getDefault().getPhoneCount()
             if (!mSending[i]) {
                 sendFirstQueuedMessage(i);
             }

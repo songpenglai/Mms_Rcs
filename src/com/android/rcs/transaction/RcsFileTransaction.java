@@ -17,43 +17,16 @@
 
 package com.android.rcs.transaction;
 
-import static com.android.mms.transaction.TransactionState.FAILED;
-import static com.android.mms.transaction.TransactionState.INITIALIZED;
-import static com.android.mms.transaction.TransactionState.SUCCESS;
-import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_RETRIEVE_CONF;
-import static com.google.android.mms.pdu.PduHeaders.STATUS_DEFERRED;
-import static com.google.android.mms.pdu.PduHeaders.STATUS_RETRIEVED;
-import static com.google.android.mms.pdu.PduHeaders.STATUS_UNRECOGNIZED;
-
-import java.io.IOException;
-
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SqliteWrapper;
-import android.net.Uri;
-import android.provider.Telephony.Mms;
-import android.provider.Telephony.Mms.Inbox;
-import android.provider.Telephony.Threads;
-import android.telephony.TelephonyManager;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
+import android.widget.Toast;
 
-import com.android.mms.MmsApp;
-import com.android.mms.MmsConfig;
-import com.android.mms.transaction.RetryScheduler;
-import com.android.mms.transaction.TransactionSettings;
-import com.android.mms.ui.MessagingPreferenceActivity;
-import com.android.mms.util.DownloadManager;
-import com.android.mms.util.Recycler;
-import com.android.mms.widget.MmsWidgetProvider;
-import com.google.android.mms.MmsException;
-import com.google.android.mms.pdu.GenericPdu;
-import com.google.android.mms.pdu.NotificationInd;
-import com.google.android.mms.pdu.NotifyRespInd;
-import com.google.android.mms.pdu.PduComposer;
-import com.google.android.mms.pdu.PduHeaders;
-import com.google.android.mms.pdu.PduParser;
-import com.google.android.mms.pdu.PduPersister;
+import com.android.mms.R;
+import com.android.rcs.util.RcsFileUtil;
+import com.android.rcs.util.RcsMiscInterface;
 
 /**
  * The NotificationTransaction is responsible for handling multimedia
@@ -77,12 +50,30 @@ public class RcsFileTransaction extends RcsTransaction implements Runnable {
     private static final boolean DEBUG = false;
     private static final boolean LOCAL_LOGV = false;
 
-    private Uri mUri;
-    private NotificationInd mNotificationInd;
-    private String mContentLocation;
+    private static final int RCS_FILE_GET_SEND_SIZE = 1;
 
-    public RcsFileTransaction(Context context, int transactionType) {
-		super(context, transactionType);
+    private static final int RCS_FILE_GET_RECV_SIZE = 2;
+    
+    int mSessId;
+    
+    private String mUri;
+
+    private String mTitle;
+
+    private String mFileName;
+
+    private String mFileType;
+
+    private String mFileTransId;
+    
+    private int mFileSize = 0;
+    
+    String mGroupChatId;
+
+    String mSessIdentity;
+    
+    public RcsFileTransaction(Context context, int transactionType, Bundle extras) {
+		super(context, transactionType, extras);
 		// TODO Auto-generated constructor stub
 	}
 
@@ -93,12 +84,92 @@ public class RcsFileTransaction extends RcsTransaction implements Runnable {
 
 	@Override
 	public void run() {
-		// TODO Auto-generated method stub
+		// 获取参数
+		getExtras();
+		
+		int ret = -1;
+		switch (mTransactionType) {
+		case RCS_SEND_FILE_TRANSACTION:
+			ret = RcsMiscInterface.sendFile(mCookie, mUri, mTitle, mFileName, mFileType, 1);
+			if (ret > 0) {
+				
+			}
+			break;
+		case RCS_RECEIVE_FILE_TRANSACTION:
+			ret = RcsMiscInterface.acceptFileTrans(mSessId, mFileName, 1);
+			if (ret > 0) {
+				
+			}
+			break;
+		case RCS_SEND_GRP_FILE_TRANSACTION:
+			ret = RcsMiscInterface.sendFileToGrpWithoutSess(mCookie, mGroupChatId, mSessIdentity, mFileName, mFileType, 1);
+			if (ret > 0) {
+				
+			}
+			break;
+
+		default:
+			break;
+		}
 		
 	}
+	
+	private void getExtras() {
+		mCookie = mExtras.getInt(RCS_COOKIE_ID);
+		mUri = mExtras.getString(RCS_SEND_URI);
+		mTitle = mExtras.getString(RCS_SEND_TITLE);
+		mFileName = mExtras.getString(RCS_SEND_FILE_NAME);
+		mFileType = mExtras.getString(RCS_SEND_FILE_TYPE);
+		mSessId = mExtras.getInt(RCS_SESSION_ID);
+		
+		if (mTransactionType == RCS_SEND_FILE_TRANSACTION
+				|| mTransactionType == RCS_SEND_GRP_FILE_TRANSACTION) {
+			mFileSize = RcsFileUtil.getFileSize(mFileName);
+		} else {
+			mFileSize = mExtras.getInt(RCS_FILE_SIZE);
+		}
+		
+		if (mTransactionType == RCS_SEND_GRP_FILE_TRANSACTION) {
+			mGroupChatId = mExtras.getString(RCS_FILE_GRP_CHAT_ID);
+			mSessIdentity = mExtras.getString(RCS_FILE_SESS_IDENTITY);
+		}
+		Log.d(TAG, toString());
+	}
+	
 
+	public Handler mToastHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			String str = null;
+
+//			if (msg.what == TOAST_MSG_QUEUED) {
+//				str = getString(R.string.message_queued);
+//			} else if (msg.what == TOAST_DOWNLOAD_LATER) {
+//				str = getString(R.string.download_later);
+//			} else if (msg.what == TOAST_NO_APN) {
+//				str = getString(R.string.no_apn);
+//			}
+//
+//			if (str != null) {
+//				Toast.makeText(RcsTransactionService.this, str,
+//						Toast.LENGTH_LONG).show();
+//			}
+		}
+	};
+	
 	@Override
 	public int getType() {
 		return mTransactionType;
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		sb.append("mCookie=").append(mCookie)
+				.append(", mUri=").append(mUri)
+				.append(", mTitle=").append(mTitle)
+				.append(", mFileName").append(mFileName)
+				.append(", mFileType").append(mFileType);
+		return sb.toString();
 	}
 }

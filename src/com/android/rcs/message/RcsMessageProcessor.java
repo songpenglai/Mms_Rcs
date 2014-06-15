@@ -1,10 +1,13 @@
 package com.android.rcs.message;
 
+import android.os.Handler;
 
 
-public class RcsMessageProcessor {
 
-	private static String TAG = "RcsMessage";
-	private static String RCS_MESSAGE_RECEIVER = "com.android.rcs.message.RECEIVER";
+public abstract class RcsMessageProcessor extends Handler {
+
+	private static String TAG = "RcsMessageProcessor";
 	
+	public abstract void process(int messageType, RcsMessage rcsMessage);
+
 }

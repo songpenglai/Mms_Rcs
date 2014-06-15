@@ -50,12 +50,19 @@
 
     <uses-permission android:name="android.permission.MMS_SEND_OUTBOX_MSG" />
 
+    <uses-sdk android:minSdkVersion="17" />
+
     <application
         android:name="MmsApp"
         android:allowTaskReparenting="true"
         android:icon="@mipmap/ic_launcher_smsmms"
         android:label="@string/app_label"
         android:taskAffinity="android.task.mms" >
+        
+		<uses-library 
+	        android:name="com.rcs.telephony.ims.im"
+            android:required="false" />
+	
         <service
             android:name=".transaction.TransactionService"
             android:exported="false" />
@@ -401,6 +408,42 @@
             android:name=".widget.MmsWidgetService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- rcs -->
+        <receiver android:name="com.android.rcs.message.RcsMessageBroadcastReceiver" >
+            <intent-filter>
+                <action android:name="yulong.provider.Im.UNSOL_NEW_IM_SESS_INVITE_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_SESS_INVITE_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_TMP_GROUP_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_SESS_COMPOSING_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_IM_MSG_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_IM_NTFY_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_MSG_SEND_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_FILE_TRANS_INVITE_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_FILE_SESS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_FILE_STFWD_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_FILE_TRANS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_FILE_STFWD_TRANS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_ISHARE_INVITE_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_ISHARE_SESS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_ISHARE_TRANS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_GEO_LOC_INVITE_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_GEO_LOC_SESS_STAT_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_GEO_LOC_MSG_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_NEW_AUTO_CONFIG_ACTION" />
+                
+                <action android:name="yulong.provider.Im.UNSOL_NEW_IM_STFWD_INVITE_ACTION" />
+                <action android:name="yulong.provider.Im.UNSOL_STFWD_INVITE_STAT_ACTION" />
+                
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.android.rcs.message.RcsMessageService"
+            android:exported="false" />
+        <service
+            android:name="com.android.rcs.transaction.RcsTransactionService"
+            android:exported="false" />
     </application>
 
 </manifest>

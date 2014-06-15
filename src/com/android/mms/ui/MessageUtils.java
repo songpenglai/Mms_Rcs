@@ -732,8 +732,8 @@ public class MessageUtils {
     }
 
     public static String getLocalNumber(int subscription) {
-        sLocalNumber = MmsApp.getApplication().getMSimTelephonyManager().
-                getLine1Number(subscription);
+//        sLocalNumber = MmsApp.getApplication().getMSimTelephonyManager().
+//                getLine1Number(subscription);
         return sLocalNumber;
     }
 

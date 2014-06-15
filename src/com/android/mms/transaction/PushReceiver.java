@@ -194,29 +194,29 @@ public class PushReceiver extends BroadcastReceiver {
                             svc.putExtra(MultiSimUtility.ORIGIN_SUB_ID,
                                     MultiSimUtility.getCurrentDataSubscription(mContext));
 
-                            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-                                boolean isSilent = true; //default, silent enabled.
-                                if ("prompt".equals(
-                                    SystemProperties.get(
-                                        TelephonyProperties.PROPERTY_MMS_TRANSACTION))) {
-                                    isSilent = false;
-                                }
-
-                                if (isSilent) {
-                                    Log.d(TAG, "MMS silent transaction");
-                                    Intent silentIntent = new Intent(mContext,
-                                            com.android.mms.ui.SelectMmsSubscription.class);
-                                    silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                    silentIntent.putExtras(svc); //copy all extras
-                                    mContext.startService(silentIntent);
-
-                                } else {
-                                    Log.d(TAG, "MMS prompt transaction");
-                                    triggerPendingOperation(svc, subId);
-                                }
-                            } else {
+//                            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+//                                boolean isSilent = true; //default, silent enabled.
+//                                if ("prompt".equals(
+//                                    SystemProperties.get(
+//                                        TelephonyProperties.PROPERTY_MMS_TRANSACTION))) {
+//                                    isSilent = false;
+//                                }
+//
+//                                if (isSilent) {
+//                                    Log.d(TAG, "MMS silent transaction");
+//                                    Intent silentIntent = new Intent(mContext,
+//                                            com.android.mms.ui.SelectMmsSubscription.class);
+//                                    silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                                    silentIntent.putExtras(svc); //copy all extras
+//                                    mContext.startService(silentIntent);
+//
+//                                } else {
+//                                    Log.d(TAG, "MMS prompt transaction");
+//                                    triggerPendingOperation(svc, subId);
+//                                }
+//                            } else {
                                 mContext.startService(svc);
-                            }
+//                            }
 
 
                         } else if (LOCAL_LOGV) {

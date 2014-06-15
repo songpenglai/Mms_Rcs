@@ -17,9 +17,15 @@
 
 package com.android.mms.ui;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+
 import android.app.ActionBar;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.ListActivity;
+import android.app.ProgressDialog;
 import android.app.SearchManager;
 import android.app.SearchableInfo;
 import android.content.ActivityNotFoundException;
@@ -63,6 +69,7 @@ import android.view.View.OnKeyListener;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SearchView;
@@ -81,11 +88,8 @@ import com.android.mms.transaction.SmsRejectedReceiver;
 import com.android.mms.util.DraftCache;
 import com.android.mms.util.Recycler;
 import com.android.mms.widget.MmsWidgetProvider;
+import com.android.rcs.util.RcsFileUtil;
 import com.google.android.mms.pdu.PduHeaders;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 
 /**
  * This activity provides a list view of existing conversations.
@@ -119,6 +123,7 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
     private int mSavedFirstVisiblePosition = AdapterView.INVALID_POSITION;
     private int mSavedFirstItemOffset;
 
+    private Context mContext;
     // keys for extras and icicles
     private final static String LAST_LIST_POS = "last_list_pos";
     private final static String LAST_LIST_OFFSET = "last_list_offset";
@@ -135,7 +140,7 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.conversation_list_screen);
-
+        mContext = this;
         mSmsPromoBannerView = findViewById(R.id.banner_sms_promo);
 
         mQueryHandler = new ThreadListQueryHandler(getContentResolver());
@@ -473,15 +478,17 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
         mSearchItem = menu.findItem(R.id.search);
         mSearchView = (SearchView) mSearchItem.getActionView();
 
-        mSearchView.setOnQueryTextListener(mQueryTextListener);
-        mSearchView.setQueryHint(getString(R.string.search_hint));
-        mSearchView.setIconifiedByDefault(true);
-        SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+        if (mSearchView != null) {
+        	mSearchView.setOnQueryTextListener(mQueryTextListener);
+            mSearchView.setQueryHint(getString(R.string.search_hint));
+            mSearchView.setIconifiedByDefault(true);
+            SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
 
-        if (searchManager != null) {
-            SearchableInfo info = searchManager.getSearchableInfo(this.getComponentName());
-            mSearchView.setSearchableInfo(info);
-        }
+            if (searchManager != null) {
+                SearchableInfo info = searchManager.getSearchableInfo(this.getComponentName());
+                mSearchView.setSearchableInfo(info);
+            }
+		}
 
         MenuItem cellBroadcastItem = menu.findItem(R.id.action_cell_broadcasts);
         if (cellBroadcastItem != null) {
@@ -550,6 +557,9 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
                     mComposeDisabledToast.show();
                 }
                 break;
+            case R.id.action_grp_chat:
+            	onCreateDialog().show();
+                break;
             case R.id.action_delete_all:
                 // The invalid threadId of -1 means all threads here.
                 confirmDeleteThread(-1L, mQueryHandler);
@@ -599,6 +609,43 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
         openThread(tid);
     }
 
+    protected Dialog onCreateDialog() {
+        AlertDialog.Builder builder =new AlertDialog.Builder(this);
+        AlertDialog customDialog;
+        
+        LayoutInflater inflater = getLayoutInflater();
+        final View layout = inflater.inflate(R.layout.grp_chat_recipient_editor, null);
+        builder.setTitle("群聊");
+        builder.setView(layout);
+        builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface arg0, int arg1) {
+            	EditText subjectView = (EditText) layout.findViewById(R.id.grp_subject);
+            	String subject = subjectView.getText().toString();
+            	
+            	EditText recipientView = (EditText) layout.findViewById(R.id.grp_recipient);
+            	String recipients = recipientView.getText().toString();
+//            	recipients = "+861900123027";
+            	// +861900123027
+            	Intent intent = new Intent();
+            	intent.setClass(mContext, ComposeMessageActivity.class);
+				intent.putExtra(ComposeMessageActivity.GRP_CHAT, true);
+				intent.putExtra(ComposeMessageActivity.GRP_SUBJECT, subject);
+				intent.putExtra(ComposeMessageActivity.GRP_RECIPIENTS, recipients);
+                startActivity(intent);
+            }
+        });
+        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            
+            @Override
+            public void onClick(DialogInterface arg0, int arg1) {
+                ConversationList.this.finish();
+            }
+        });
+        customDialog = builder.create();
+        
+        return customDialog;
+    }
+    
     private void createNewMessage() {
         startActivity(ComposeMessageActivity.createIntent(this, 0));
     }
@@ -853,8 +900,8 @@ public class ConversationList extends ListActivity implements DraftCache.OnDraft
                     LogTag.debug("mDeleteObsoleteThreadsRunnable calling " +
                             "asyncDeleteObsoleteThreads");
                 }
-                Conversation.asyncDeleteObsoleteThreads(mQueryHandler,
-                        DELETE_OBSOLETE_THREADS_TOKEN);
+//                Conversation.asyncDeleteObsoleteThreads(mQueryHandler,
+//                        DELETE_OBSOLETE_THREADS_TOKEN);
             }
         }
     };
