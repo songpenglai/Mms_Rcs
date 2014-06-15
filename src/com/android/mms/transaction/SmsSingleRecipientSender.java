@@ -119,14 +119,14 @@ public class SmsSingleRecipientSender extends SmsMessageSender {
             sentIntents.add(PendingIntent.getBroadcast(mContext, requestCode, intent, 0));
         }
         try {
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                MSimSmsManager smsManagerMSim = MSimSmsManager.getDefault();
-//                smsManagerMSim.sendMultipartTextMessage(mDest, mServiceCenter, messages,
-//                           sentIntents, deliveryIntents, -1, isExpectMore, mSubscription);
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                MSimSmsManager smsManagerMSim = MSimSmsManager.getDefault();
+                smsManagerMSim.sendMultipartTextMessage(mDest, mServiceCenter, messages,
+                           sentIntents, deliveryIntents, -1, isExpectMore, mSubscription);
+            } else {
                 smsManager.sendMultipartTextMessage(mDest, mServiceCenter, messages, sentIntents,
                            deliveryIntents, -1, isExpectMore);
-//            }
+            }
         } catch (Exception ex) {
             Log.e(TAG, "SmsMessageSender.sendMessage: caught", ex);
             throw new MmsException("SmsMessageSender.sendMessage: caught " + ex +

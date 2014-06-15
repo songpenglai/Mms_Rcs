@@ -28,7 +28,6 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Paint.FontMetricsInt;
 import android.graphics.Typeface;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Handler;
@@ -73,7 +72,6 @@ import com.android.mms.util.DownloadManager;
 import com.android.mms.util.ItemLoadedCallback;
 import com.android.mms.util.MultiSimUtility;
 import com.android.mms.util.ThumbnailManager.ImageLoaded;
-import com.android.rcs.util.RcsFileUtil;
 import com.google.android.mms.ContentType;
 import com.google.android.mms.pdu.PduHeaders;
 
@@ -255,19 +253,19 @@ public class MessageListItem extends LinearLayout implements
                         intent.putExtra(MultiSimUtility.ORIGIN_SUB_ID,
                                 MultiSimUtility.getCurrentDataSubscription(mContext));
 
-//                        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                            Log.d(TAG, "Download button pressed for sub=" +
-//                                       mMessageItem.mSubscription);
-//                            Log.d(TAG, "Manual download is always silent transaction");
-//
-//                            Intent silentIntent = new Intent(mContext,
-//                                    com.android.mms.ui.SelectMmsSubscription.class);
-//                            silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//                            silentIntent.putExtras(intent); //copy all extras
-//                            mContext.startService(silentIntent);
-//                        } else {
+                        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                            Log.d(TAG, "Download button pressed for sub=" +
+                                       mMessageItem.mSubscription);
+                            Log.d(TAG, "Manual download is always silent transaction");
+
+                            Intent silentIntent = new Intent(mContext,
+                                    com.android.mms.ui.SelectMmsSubscription.class);
+                            silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            silentIntent.putExtras(intent); //copy all extras
+                            mContext.startService(silentIntent);
+                        } else {
                             mContext.startService(intent);
-//                        }
+                        }
 
                         DownloadManager.getInstance().markState(
                                  mMessageItem.mMessageUri, DownloadManager.STATE_PRE_DOWNLOADING);
@@ -389,26 +387,7 @@ public class MessageListItem extends LinearLayout implements
                         mMessageItem.mTimestamp));
         }
         if (mMessageItem.isSms()) {
-        	if (!TextUtils.isEmpty(mMessageItem.mFilePath)) {
-        		showMmsView(true);
-        		String fileType = RcsFileUtil.getFileTypeFromUri(mMessageItem.mFilePath);
-        		if (!TextUtils.isEmpty(fileType)) {
-					if (fileType.startsWith("image/")) {
-						BitmapDrawable drawable = RcsFileUtil.getImageDrawable(mContext, mMessageItem.mFilePath);
-						mImageView.setImageDrawable(drawable);
-					} else if (fileType.startsWith("audio/")) {
-						Drawable drawable = mContext.getResources().getDrawable(R.drawable.ic_menu_add_sound);
-						mImageView.setImageDrawable(drawable);
-					} else if (fileType.startsWith("video/")) {
-						Drawable drawable = mContext.getResources().getDrawable(R.drawable.ic_menu_movie);
-						mImageView.setImageDrawable(drawable);
-					}
-				}
-        		
-        		
-			} else {
-				showMmsView(false);
-			}
+            showMmsView(false);
             mMessageItem.setOnPduLoaded(null);
         } else {
             if (DEBUG) {
@@ -576,8 +555,8 @@ public class MessageListItem extends LinearLayout implements
                                        String contentType) {
         SpannableStringBuilder buf = new SpannableStringBuilder();
 
-        if (//MSimTelephonyManager.getDefault().isMultiSimEnabled() && 
-                !isSimCardMessage()) {
+        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()
+                && !isSimCardMessage()) {
             int subscription = subId + 1;
             buf.append("SUB" + subscription + ":");
             buf.append("\n");

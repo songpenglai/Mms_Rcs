@@ -19,10 +19,8 @@
 
 package com.android.mms.transaction;
 
-import java.io.IOException;
-import java.util.ArrayList;
-
 import android.app.NotificationManager;
+import android.app.Notification;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ContentUris;
@@ -31,8 +29,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
-import android.database.DatabaseUtils;
 import android.database.sqlite.SqliteWrapper;
+import android.database.DatabaseUtils;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -46,7 +44,10 @@ import android.os.PowerManager;
 import android.os.SystemProperties;
 import android.provider.Telephony.Mms;
 import android.provider.Telephony.MmsSms;
+import android.provider.Telephony.Mms.Sent;
 import android.provider.Telephony.MmsSms.PendingMessages;
+import android.telephony.MSimTelephonyManager;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
@@ -65,6 +66,9 @@ import com.google.android.mms.pdu.NotificationInd;
 import com.google.android.mms.pdu.PduHeaders;
 import com.google.android.mms.pdu.PduParser;
 import com.google.android.mms.pdu.PduPersister;
+
+import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * The TransactionService of the MMS Client is responsible for handling requests

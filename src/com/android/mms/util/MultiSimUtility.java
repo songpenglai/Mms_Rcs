@@ -34,26 +34,26 @@ import android.util.Log;
 
         public static int getCurrentDataSubscription(Context mContext) {
 
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                MSimTelephonyManager mtmgr = (MSimTelephonyManager)
-//                    mContext.getSystemService (Context.MSIM_TELEPHONY_SERVICE);
-//                return mtmgr.getPreferredDataSubscription();
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                MSimTelephonyManager mtmgr = (MSimTelephonyManager)
+                    mContext.getSystemService (Context.MSIM_TELEPHONY_SERVICE);
+                return mtmgr.getPreferredDataSubscription();
+            } else {
                 return 0;
-//            }
+            }
         }
 
         public static void startSelectMmsSubsciptionServ(Context mContext, Intent svc) {
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                Log.d(TAG, "MMS silent transaction");
-//                Intent silentIntent = new Intent(mContext,
-//                        com.android.mms.ui.SelectMmsSubscription.class);
-//                silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//                silentIntent.putExtras(svc); //copy all extras
-//                mContext.startService(silentIntent);
-//
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                Log.d(TAG, "MMS silent transaction");
+                Intent silentIntent = new Intent(mContext,
+                        com.android.mms.ui.SelectMmsSubscription.class);
+                silentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                silentIntent.putExtras(svc); //copy all extras
+                mContext.startService(silentIntent);
+
+            } else {
                 mContext.startService(svc);
-//            }
+            }
         }
     }

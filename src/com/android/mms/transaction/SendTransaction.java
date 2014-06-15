@@ -106,13 +106,13 @@ public class SendTransaction extends Transaction implements Runnable {
 
             // fix bug 2100169: insert the 'from' address per spec
             String lineNumber;
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                lineNumber = MessageUtils.getLocalNumber(
-//                        MultiSimUtility.getCurrentDataSubscription(mContext));
-//                Log.d(TAG, "lineNumber " + lineNumber);
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                lineNumber = MessageUtils.getLocalNumber(
+                        MultiSimUtility.getCurrentDataSubscription(mContext));
+                Log.d(TAG, "lineNumber " + lineNumber);
+            } else {
                 lineNumber = MessageUtils.getLocalNumber();
-//            }
+            }
 
             if (!TextUtils.isEmpty(lineNumber)) {
                 sendReq.setFrom(new EncodedStringValue(lineNumber));

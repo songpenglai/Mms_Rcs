@@ -50,18 +50,6 @@ public class MessageListAdapter extends CursorAdapter {
     private static final String TAG = "MessageListAdapter";
     private static final boolean LOCAL_LOGV = false;
 
-//    RCS File
-    private static final String RCS_FILE_NAME = "file_name";
-    private static final String RCS_FILE_TYPE = "file_type";
-    private static final String RCS_FILE_PATH = "file_path";
-    private static final String RCS_FILE_TRANS_ID = "file_trans_id";
-    private static final String RCS_FILE_SIZE = "file_size";
-    private static final String RCS_SEND_SIZE = "send_size";
-    private static final String RCS_RECV_SIZE = "recv_size";
-    private static final String RCS_IMDN_STRING = "imdn_string";
-    private static final String RCS_IMDN_TYPE = "imdn_type";
-    private static final String RCS_NOTIFY_TYPE = "notify_type";
-    private static final String RCS_HAS_THUMS = "has_thums";
     static final String[] PROJECTION = new String[] {
         // TODO: should move this symbol into com.android.mms.telephony.Telephony.
         MmsSms.TYPE_DISCRIMINATOR_COLUMN,
@@ -78,20 +66,6 @@ public class MessageListAdapter extends CursorAdapter {
         Sms.STATUS,
         Sms.LOCKED,
         Sms.ERROR_CODE,
-        
-        // for Rcs File
-        RCS_FILE_NAME,
-        RCS_FILE_TYPE,
-        RCS_FILE_PATH,
-        RCS_FILE_TRANS_ID,
-        RCS_FILE_SIZE,
-        RCS_SEND_SIZE,
-        RCS_RECV_SIZE,
-        RCS_IMDN_STRING,
-        RCS_IMDN_TYPE,
-        RCS_NOTIFY_TYPE,
-        RCS_HAS_THUMS, 
-        
         // For MMS
         Mms.SUBJECT,
         Mms.SUBJECT_CHARSET,
@@ -123,33 +97,19 @@ public class MessageListAdapter extends CursorAdapter {
     static final int COLUMN_SMS_STATUS          = 10;
     static final int COLUMN_SMS_LOCKED          = 11;
     static final int COLUMN_SMS_ERROR_CODE      = 12;
-
-	static final int COLUMN_RCS_FILE_NAME		= 13;     
-	static final int COLUMN_RCS_FILE_TYPE		= 14;      
-	static final int COLUMN_RCS_FILE_PATH		= 15;      
-	static final int COLUMN_RCS_FILE_TRANS_ID	= 16;  
-	static final int COLUMN_RCS_FILE_SIZE		= 17;      
-	static final int COLUMN_RCS_SEND_SIZE		= 18;      
-	static final int COLUMN_RCS_RECV_SIZE		= 19;      
-	static final int COLUMN_RCS_IMDN_STRING		= 20;    
-	static final int COLUMN_RCS_IMDN_TYPE		= 21;      
-	static final int COLUMN_RCS_NOTIFY_TYPE		= 22;   
-	static final int COLUMN_RCS_HAS_THUMS		= 23;     
-
-    
-    static final int COLUMN_MMS_SUBJECT         = 24;
-    static final int COLUMN_MMS_SUBJECT_CHARSET = 25;
-    static final int COLUMN_MMS_DATE            = 26;
-    static final int COLUMN_MMS_DATE_SENT       = 27;
-    static final int COLUMN_MMS_READ            = 28;
-    static final int COLUMN_MMS_MESSAGE_TYPE    = 29;
-    static final int COLUMN_MMS_MESSAGE_BOX     = 30;
-    static final int COLUMN_MMS_DELIVERY_REPORT = 31;
-    static final int COLUMN_MMS_READ_REPORT     = 32;
-    static final int COLUMN_MMS_ERROR_TYPE      = 33;
-    static final int COLUMN_MMS_LOCKED          = 34;
-    static final int COLUMN_MMS_STATUS          = 35;
-    static final int COLUMN_MMS_TEXT_ONLY       = 36;
+    static final int COLUMN_MMS_SUBJECT         = 13;
+    static final int COLUMN_MMS_SUBJECT_CHARSET = 14;
+    static final int COLUMN_MMS_DATE            = 15;
+    static final int COLUMN_MMS_DATE_SENT       = 16;
+    static final int COLUMN_MMS_READ            = 17;
+    static final int COLUMN_MMS_MESSAGE_TYPE    = 18;
+    static final int COLUMN_MMS_MESSAGE_BOX     = 19;
+    static final int COLUMN_MMS_DELIVERY_REPORT = 20;
+    static final int COLUMN_MMS_READ_REPORT     = 21;
+    static final int COLUMN_MMS_ERROR_TYPE      = 22;
+    static final int COLUMN_MMS_LOCKED          = 23;
+    static final int COLUMN_MMS_STATUS          = 24;
+    static final int COLUMN_MMS_TEXT_ONLY       = 25;
 
     private static final int CACHE_SIZE         = 50;
 
@@ -372,19 +332,6 @@ public class MessageListAdapter extends CursorAdapter {
         public int mColumnSmsStatus;
         public int mColumnSmsLocked;
         public int mColumnSmsErrorCode;
-        
-        public int mColumnRcsFileName;
-        public int mColumnRcsFileType;
-        public int mColumnRcsFilePath;
-        public int mColumnRcsFileTransid;
-        public int mColumnRcsFileSize;
-        public int mColumnRcsSendSize;
-        public int mColumnRcsRecvSize;
-        public int mColumnRcsImdnStr;
-        public int mColumnRcsImdnType;
-        public int mColumnRcsNotifyType;
-        public int mColumnRcsHasThums;
-        
         public int mColumnMmsSubject;
         public int mColumnMmsSubjectCharset;
         public int mColumnMmsDate;
@@ -411,19 +358,6 @@ public class MessageListAdapter extends CursorAdapter {
             mColumnSmsStatus          = COLUMN_SMS_STATUS;
             mColumnSmsLocked          = COLUMN_SMS_LOCKED;
             mColumnSmsErrorCode       = COLUMN_SMS_ERROR_CODE;
-            
-            mColumnRcsFileName		= COLUMN_RCS_FILE_NAME;     
-            mColumnRcsFileType		= COLUMN_RCS_FILE_TYPE;      
-            mColumnRcsFilePath		= COLUMN_RCS_FILE_PATH;      
-            mColumnRcsFileTransid	= COLUMN_RCS_FILE_TRANS_ID;  
-            mColumnRcsFileSize		= COLUMN_RCS_FILE_SIZE;      
-            mColumnRcsSendSize		= COLUMN_RCS_SEND_SIZE;      
-            mColumnRcsRecvSize		= COLUMN_RCS_RECV_SIZE;      
-            mColumnRcsImdnStr		= COLUMN_RCS_IMDN_STRING;    
-            mColumnRcsImdnType		= COLUMN_RCS_IMDN_TYPE;      
-            mColumnRcsNotifyType	= COLUMN_RCS_NOTIFY_TYPE;   
-            mColumnRcsHasThums		= COLUMN_RCS_HAS_THUMS;     
-        	
             mColumnMmsSubject         = COLUMN_MMS_SUBJECT;
             mColumnMmsSubjectCharset  = COLUMN_MMS_SUBJECT_CHARSET;
             mColumnMmsMessageType     = COLUMN_MMS_MESSAGE_TYPE;

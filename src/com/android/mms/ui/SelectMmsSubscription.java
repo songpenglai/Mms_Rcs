@@ -209,21 +209,21 @@ public class SelectMmsSubscription extends Service {
         private int switchSubscriptionTo(TxnRequest req) {
             TelephonyManager tmgr = (TelephonyManager)
                     mContext.getSystemService(Context.TELEPHONY_SERVICE);
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                Log.d(TAG, "DSDS enabled");
-//                MSimTelephonyManager mtmgr = (MSimTelephonyManager)
-//                    mContext.getSystemService (Context.MSIM_TELEPHONY_SERVICE);
-//                int result = (mtmgr.setPreferredDataSubscription(req.destSub))? 1: 0;
-//                if (result == 1) { //Success.
-//                    Log.d(TAG, "Subscription switch done.");
-//
-//                    while(!isNetworkAvailable()) {
-//                        Log.d(TAG, "isNetworkAvailable = false, sleep..");
-//                        sleep(1000);
-//                    }
-//                }
-//                return result;
-//            }
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                Log.d(TAG, "DSDS enabled");
+                MSimTelephonyManager mtmgr = (MSimTelephonyManager)
+                    mContext.getSystemService (Context.MSIM_TELEPHONY_SERVICE);
+                int result = (mtmgr.setPreferredDataSubscription(req.destSub))? 1: 0;
+                if (result == 1) { //Success.
+                    Log.d(TAG, "Subscription switch done.");
+
+                    while(!isNetworkAvailable()) {
+                        Log.d(TAG, "isNetworkAvailable = false, sleep..");
+                        sleep(1000);
+                    }
+                }
+                return result;
+            }
             return 1;
         }
 

@@ -44,9 +44,6 @@ import com.android.mms.util.DraftCache;
 import com.android.mms.util.PduLoaderManager;
 import com.android.mms.util.RateController;
 import com.android.mms.util.ThumbnailManager;
-import com.android.rcs.session.RcsSessionManager;
-import com.android.rcs.util.RcsMiscInterface;
-import com.rcs.telephony.ims.im.ImManager;
 
 public class MmsApp extends Application {
     public static final String LOG_TAG = "Mms";
@@ -61,8 +58,6 @@ public class MmsApp extends Application {
     private PduLoaderManager mPduLoaderManager;
     private ThumbnailManager mThumbnailManager;
     private DrmManagerClient mDrmManagerClient;
-    
-    RcsSessionManager mRcsSessionmanager;
 
     @Override
     public void onCreate() {
@@ -104,19 +99,8 @@ public class MmsApp extends Application {
         LayoutManager.init(this);
         MessagingNotification.init(this);
 
-//        activePendingMessages();
-        
-        // rcs init
-        initRcs(context);
-        
-//        ImManager im = ImManager.getDefault(this);
+        activePendingMessages();
     }
-
-	private void initRcs(Context context) {
-        RcsMiscInterface.initRcsState(context);
-        mRcsSessionmanager = RcsSessionManager.getDefault(context);
-        mRcsSessionmanager.init();
-	}
 
     /**
      * Try to process all pending messages(which were interrupted by user, OOM, Mms crashing,

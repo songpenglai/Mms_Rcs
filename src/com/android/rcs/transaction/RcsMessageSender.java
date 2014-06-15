@@ -1,7 +1,22 @@
+/*
+ * Copyright (C) 2008 Esmertec AG.
+ * Copyright (C) 2008 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package com.android.rcs.transaction;
 
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,10 +25,8 @@ import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SqliteWrapper;
 import android.net.Uri;
 import android.preference.PreferenceManager;
-import android.provider.Telephony.Mms.Outbox;
 import android.provider.Telephony.Sms;
 import android.provider.Telephony.Sms.Inbox;
-import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.telephony.MSimConstants;
@@ -33,9 +46,6 @@ public class RcsMessageSender implements MessageSender {
     protected final long mThreadId;
     protected long mTimestamp;
     protected int mSubscription;
-    protected int mSessId = 0;
-    protected String mGrpChatId = "";
-    
     private static final String TAG = "SmsMessageSender";
 
     // Default preference values
@@ -73,21 +83,6 @@ public class RcsMessageSender implements MessageSender {
         return queueMessage(token);
     }
 
-    public boolean sendMessage(long token, int sessId) throws MmsException {
-    	mSessId = sessId;
-        // In order to send the message one by one, instead of sending now, the message will split,
-        // and be put into the queue along with each destinations
-        return queueMessage(token);
-    }
-
-    public boolean sendMessage(long token, int sessId, String grpChatId) throws MmsException {
-    	mSessId = sessId;
-    	mGrpChatId = grpChatId;
-        // In order to send the message one by one, instead of sending now, the message will split,
-        // and be put into the queue along with each destinations
-        return queueMessage(token);
-    }
-    
     private boolean queueMessage(long token) throws MmsException {
         if ((mMessageText == null) || (mNumberOfDests == 0)) {
             // Don't try to send an empty message.
@@ -99,42 +94,18 @@ public class RcsMessageSender implements MessageSender {
                 MessagingPreferenceActivity.SMS_DELIVERY_REPORT_MODE,
                 DEFAULT_DELIVERY_REPORT_MODE);
 
-        int inserCount = mNumberOfDests;
-        if (!TextUtils.isEmpty(mGrpChatId)) {
-        	inserCount = 1;
-		}
-        Uri uri = null;
-        for (int i = 0; i < inserCount; i++) {
+        for (int i = 0; i < mNumberOfDests; i++) {
             try {
                 if (LogTag.DEBUG_SEND) {
                     Log.v(TAG, "queueMessage mDests[i]: " + mDests[i] + " mThreadId: " + mThreadId);
                 }
                 log("updating Database with sub = " + mSubscription);
-//                Sms.addMessageToUri(mContext.getContentResolver(),
-//                        Uri.parse("content://sms/queued"), mDests[i],
-//                        mMessageText, null, mTimestamp,
-//                        true /* read */,
-//                        requestDeliveryReport,
-//                        mThreadId, mSubscription);
-
-                ContentValues values = new ContentValues();
-                values.put(Sms.THREAD_ID, mThreadId);
-                values.put(Sms.BODY, mMessageText);
-                values.put(Sms.DATE, System.currentTimeMillis());
-                values.put(Sms.TYPE, Outbox.MESSAGE_BOX_OUTBOX);
-                if (!TextUtils.isEmpty(mGrpChatId)) {
-                	values.put("group_chat_id", mGrpChatId);
-                	StringBuilder number = new StringBuilder();
-                	for (int j = 0; j < mDests.length; j++) {
-                		number.append(mDests[j]).append(";");
-					}
-                	String numbers = number.substring(0, number.length() - 1);
-                	values.put(Sms.ADDRESS, numbers);
-				} else {
-					values.put(Sms.ADDRESS, mDests[0]);
-				}
-                
-                uri = mContext.getContentResolver().insert(Uri.parse("content://sms"), values);
+                Sms.addMessageToUri(mContext.getContentResolver(),
+                        Uri.parse("content://sms/queued"), mDests[i],
+                        mMessageText, null, mTimestamp,
+                        true /* read */,
+                        requestDeliveryReport,
+                        mThreadId, mSubscription);
             } catch (SQLiteException e) {
                 if (LogTag.DEBUG_SEND) {
                     Log.e(TAG, "queueMessage SQLiteException", e);
@@ -142,72 +113,14 @@ public class RcsMessageSender implements MessageSender {
                 SqliteWrapper.checkSQLiteException(mContext, e);
             }
         }
-        
-        if (uri != null) {
-        	int sendType = RcsTransaction.RCS_SEND_PAGE_IM_TRANSACTION;
-        	String id = uri.getLastPathSegment();
-        	boolean imMode = MessagingPreferenceActivity.getRcsImType(mContext);
-        	if (!imMode || !TextUtils.isEmpty(mGrpChatId)) {
-        		sendType = RcsTransaction.RCS_SEND_SESSION_IM_TRANSACTION;
-			}
-        	RcsTransactionService.sendImMessage(mContext, Integer.valueOf(id), mSessId, sendType, mDests[0], mMessageText);
-		}
-        
-//        Intent intent = new Intent(SmsReceiverService.ACTION_SEND_MESSAGE, null, mContext,
-//                SmsReceiver.class);
-//        intent.putExtra(MSimConstants.SUBSCRIPTION_KEY, mSubscription);
-//        // Notify the SmsReceiverService to send the message out
-//        mContext.sendBroadcast(intent);
+        Intent intent = new Intent(SmsReceiverService.ACTION_SEND_MESSAGE, null, mContext,
+                SmsReceiver.class);
+        intent.putExtra(MSimConstants.SUBSCRIPTION_KEY, mSubscription);
+        // Notify the SmsReceiverService to send the message out
+        mContext.sendBroadcast(intent);
         return false;
     }
-    
-    public int saveMessage(String grpChatId) {
-    	mGrpChatId = grpChatId;
-    	return saveMessage();
-    }
-    
-    public int saveMessage() {
 
-        if ((mMessageText == null) || (mNumberOfDests == 0)) {
-            // Don't try to send an empty message.
-            return -1;
-        }
-        Uri uri = null;
-        for (int i = 0; i < mNumberOfDests; i++) {
-            try {
-                ContentValues values = new ContentValues();
-                values.put(Sms.THREAD_ID, mThreadId);
-                values.put(Sms.BODY, mMessageText);
-                values.put(Sms.ADDRESS, mDests[0]);
-                values.put(Sms.DATE, System.currentTimeMillis());
-                values.put(Sms.TYPE, Outbox.MESSAGE_BOX_OUTBOX);
-                if (!TextUtils.isEmpty(mGrpChatId)) {
-                	values.put("group_chat_id", mGrpChatId);
-				}
-                
-                uri = mContext.getContentResolver().insert(Uri.parse("content://sms"), values);
-            } catch (SQLiteException e) {
-                if (LogTag.DEBUG_SEND) {
-                    Log.e(TAG, "queueMessage SQLiteException", e);
-                }
-                SqliteWrapper.checkSQLiteException(mContext, e);
-            }
-        }
-        int id = -1;
-        if (uri != null) {
-        	String Segment = uri.getLastPathSegment();
-        	id = Integer.valueOf(Segment);
-//        	RcsTransactionService.sendImMessage(mContext, id, 0, RcsTransaction.RCS_SEND_PAGE_IM_TRANSACTION, mDests[0], mMessageText);
-		}
-        
-        return id;
-    
-    }
-
-    public void sendSessMessage() {
-    	
-    }
-    
     /**
      * Get the service center to use for a reply.
      *

@@ -34,8 +34,10 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import android.app.ActionBar;
@@ -60,6 +62,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SqliteWrapper;
 import android.drm.DrmStore;
+import android.graphics.drawable.Drawable;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -70,23 +73,22 @@ import android.os.Message;
 import android.os.Parcelable;
 import android.os.SystemProperties;
 import android.provider.ContactsContract;
+import android.provider.ContactsContract.QuickContact;
+import android.provider.Telephony;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Intents;
-import android.provider.ContactsContract.QuickContact;
 import android.provider.MediaStore.Images;
 import android.provider.MediaStore.Video;
 import android.provider.Settings;
-import android.provider.Telephony;
 import android.provider.Telephony.Mms;
-import android.provider.Telephony.Threads;
-import android.provider.Telephony.Mms.Outbox;
 import android.provider.Telephony.Sms;
 import android.telephony.MSimSmsManager;
 import android.telephony.MSimTelephonyManager;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.SmsMessage;
+import android.telephony.TelephonyManager;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputFilter.LengthFilter;
@@ -104,24 +106,27 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.ViewGroup;
 import android.view.View;
 import android.view.View.OnCreateContextMenuListener;
 import android.view.View.OnKeyListener;
-import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.MimeTypeMap;
 import android.widget.AdapterView;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Button;
 
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.MSimConstants;
 import com.android.mms.LogTag;
 import com.android.mms.MmsApp;
 import com.android.mms.MmsConfig;
@@ -130,7 +135,6 @@ import com.android.mms.TempFileProvider;
 import com.android.mms.data.Contact;
 import com.android.mms.data.ContactList;
 import com.android.mms.data.Conversation;
-import com.android.mms.data.RecipientIdCache;
 import com.android.mms.data.Conversation.ConversationQueryHandler;
 import com.android.mms.data.WorkingMessage;
 import com.android.mms.data.WorkingMessage.MessageStatusListener;
@@ -142,19 +146,9 @@ import com.android.mms.ui.MessageListView.OnSizeChangedListener;
 import com.android.mms.ui.MessageUtils.ResizeImageResultCallback;
 import com.android.mms.ui.RecipientsEditor.RecipientContextMenuInfo;
 import com.android.mms.util.DraftCache;
+import com.android.mms.util.PhoneNumberFormatter;
 import com.android.mms.util.SendingProgressTokenManager;
 import com.android.mms.widget.MmsWidgetProvider;
-import com.android.rcs.session.RcsSessionManager;
-import com.android.rcs.session.RcsSessionManager.RcsSessStatelistener;
-import com.android.rcs.session.RcsSessionManager.RcsSessionEntity;
-import com.android.rcs.transaction.RcsFileSender;
-import com.android.rcs.transaction.RcsMessageSender;
-import com.android.rcs.transaction.RcsTransaction;
-import com.android.rcs.util.RcsFileUtil;
-import com.android.rcs.util.RcsMiscInterface;
-import com.android.rcs.util.RcsModelGroups;
-import com.android.rcs.util.RcsModelMessage;
-import com.android.rcs.util.RcsProviderInterface;
 import com.google.android.mms.ContentType;
 import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu.EncodedStringValue;
@@ -178,7 +172,7 @@ import com.google.android.mms.pdu.SendReq;
  */
 public class ComposeMessageActivity extends Activity
         implements View.OnClickListener, TextView.OnEditorActionListener,
-        MessageStatusListener, Contact.UpdateListener, RcsSessStatelistener {
+        MessageStatusListener, Contact.UpdateListener {
     public static final int REQUEST_CODE_ATTACH_IMAGE     = 100;
     public static final int REQUEST_CODE_TAKE_PICTURE     = 101;
     public static final int REQUEST_CODE_ATTACH_VIDEO     = 102;
@@ -264,10 +258,6 @@ public class ComposeMessageActivity extends Activity
     // messages+draft after the max delay.
     private static final int LOADING_MESSAGES_AND_DRAFT_MAX_DELAY_MS = 500;
 
-    public static final String GRP_CHAT = "grp_chat";
-    public static final String GRP_SUBJECT = "grp_subject";
-    public static final String GRP_RECIPIENTS = "grp_recipients";
-    public static final String GRP_CHAT_ID = "grp_chat_id";
     private ContentResolver mContentResolver;
 
     private BackgroundQueryHandler mBackgroundQueryHandler;
@@ -361,12 +351,6 @@ public class ComposeMessageActivity extends Activity
     // keys for extras and icicles
     public final static String THREAD_ID = "thread_id";
     private final static String RECIPIENTS = "recipients";
-    
-    private String sessId;
-    private boolean mIsGrpChat = false;
-    private String mGrpChatId;
-    RcsModelGroups mGroupsModel;
-    private Context mContext;
 
     @SuppressWarnings("unused")
     public static void log(String logMsg) {
@@ -708,11 +692,11 @@ public class ComposeMessageActivity extends Activity
     private class SendIgnoreInvalidRecipientListener implements OnClickListener {
         @Override
         public void onClick(DialogInterface dialog, int whichButton) {
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                sendMsimMessage(true);
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                sendMsimMessage(true);
+            } else {
                 sendMessage(true);
-//            }
+            }
             dialog.dismiss();
         }
     }
@@ -812,11 +796,11 @@ public class ComposeMessageActivity extends Activity
 
     private void confirmSendMessageIfNeeded() {
         if (!isRecipientsEditorVisible()) {
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                sendMsimMessage(true);
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                sendMsimMessage(true);
+            } else {
                 sendMessage(true);
-//            }
+            }
             return;
         }
 
@@ -844,11 +828,11 @@ public class ComposeMessageActivity extends Activity
             // as the destination.
             ContactList contacts = mRecipientsEditor.constructContactsFromInput(false);
             mDebugRecipients = contacts.serialize();
-//            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//                sendMsimMessage(true);
-//            } else {
+            if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+                sendMsimMessage(true);
+            } else {
                 sendMessage(true);
-//            }
+            }
         }
     }
 
@@ -1902,25 +1886,22 @@ public class ComposeMessageActivity extends Activity
         // returns empty recipients when the editor is visible.
         ContactList recipients = getRecipients();
 
-        ViewStub stub = (ViewStub) findViewById(R.id.recipients_editor_stub);
+        ViewStub stub = (ViewStub)findViewById(R.id.recipients_editor_stub);
         if (stub != null) {
             View stubView = stub.inflate();
-            mRecipientsEditor = (RecipientsEditor) stubView.findViewById(R.id.recipients);
+            mRecipientsEditor = (RecipientsEditor) stubView.findViewById(R.id.recipients_editor);
             mRecipientsPicker = (ImageButton) stubView.findViewById(R.id.recipients_picker);
         } else {
-            mRecipientsEditor = (RecipientsEditor)findViewById(R.id.recipients);
+            mRecipientsEditor = (RecipientsEditor)findViewById(R.id.recipients_editor);
+            mRecipientsEditor.setVisibility(View.VISIBLE);
             mRecipientsPicker = (ImageButton)findViewById(R.id.recipients_picker);
         }
-        mRecipientsEditor.setVisibility(View.VISIBLE);
-        if (mIsGrpChat) {
-            mRecipientsEditor.setVisibility(View.GONE);			
-		}
         mRecipientsPicker.setOnClickListener(this);
 
-//        mRecipientsEditor.setAdapter(new ChipsRecipientAdapter(this));
-//        mRecipientsEditor.populate(recipients);
-//        mRecipientsEditor.setOnCreateContextMenuListener(mRecipientsMenuCreateListener);
-//        mRecipientsEditor.addTextChangedListener(mRecipientsWatcher);
+        mRecipientsEditor.setAdapter(new ChipsRecipientAdapter(this));
+        mRecipientsEditor.populate(recipients);
+        mRecipientsEditor.setOnCreateContextMenuListener(mRecipientsMenuCreateListener);
+        mRecipientsEditor.addTextChangedListener(mRecipientsWatcher);
         // TODO : Remove the max length limitation due to the multiple phone picker is added and the
         // user is able to select a large number of recipients from the Contacts. The coming
         // potential issue is that it is hard for user to edit a recipient from hundred of
@@ -1928,37 +1909,37 @@ public class ComposeMessageActivity extends Activity
         // mRecipientsEditor.setFilters(new InputFilter[] {
         //         new InputFilter.LengthFilter(RECIPIENTS_MAX_LENGTH) });
 
-//        mRecipientsEditor.setOnSelectChipRunnable(new Runnable() {
-//            @Override
-//            public void run() {
-//                // After the user selects an item in the pop-up contacts list, move the
-//                // focus to the text editor if there is only one recipient.  This helps
-//                // the common case of selecting one recipient and then typing a message,
-//                // but avoids annoying a user who is trying to add five recipients and
-//                // keeps having focus stolen away.
-//                if (mRecipientsEditor.getRecipientCount() == 1) {
-//                    // if we're in extract mode then don't request focus
-//                    final InputMethodManager inputManager = (InputMethodManager)
-//                        getSystemService(Context.INPUT_METHOD_SERVICE);
-//                    if (inputManager == null || !inputManager.isFullscreenMode()) {
-//                        mTextEditor.requestFocus();
-//                    }
-//                }
-//            }
-//        });
+        mRecipientsEditor.setOnSelectChipRunnable(new Runnable() {
+            @Override
+            public void run() {
+                // After the user selects an item in the pop-up contacts list, move the
+                // focus to the text editor if there is only one recipient.  This helps
+                // the common case of selecting one recipient and then typing a message,
+                // but avoids annoying a user who is trying to add five recipients and
+                // keeps having focus stolen away.
+                if (mRecipientsEditor.getRecipientCount() == 1) {
+                    // if we're in extract mode then don't request focus
+                    final InputMethodManager inputManager = (InputMethodManager)
+                        getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (inputManager == null || !inputManager.isFullscreenMode()) {
+                        mTextEditor.requestFocus();
+                    }
+                }
+            }
+        });
 
-//        mRecipientsEditor.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-//            @Override
-//            public void onFocusChange(View v, boolean hasFocus) {
-//                if (!hasFocus) {
-//                    RecipientsEditor editor = (RecipientsEditor) v;
-//                    ContactList contacts = editor.constructContactsFromInput(false);
-//                    updateTitle(contacts);
-//                }
-//            }
-//        });
+        mRecipientsEditor.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (!hasFocus) {
+                    RecipientsEditor editor = (RecipientsEditor) v;
+                    ContactList contacts = editor.constructContactsFromInput(false);
+                    updateTitle(contacts);
+                }
+            }
+        });
 
-//        PhoneNumberFormatter.setPhoneNumberFormattingTextWatcher(this, mRecipientsEditor);
+        PhoneNumberFormatter.setPhoneNumberFormattingTextWatcher(this, mRecipientsEditor);
 
         mTopPanel.setVisibility(View.VISIBLE);
     }
@@ -1990,7 +1971,6 @@ public class ComposeMessageActivity extends Activity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         mIsSmsEnabled = MmsConfig.isSmsEnabled(this);
-        mContext = this;
         super.onCreate(savedInstanceState);
 
         resetConfiguration(getResources().getConfiguration());
@@ -2616,7 +2596,7 @@ public class ComposeMessageActivity extends Activity
 
     private void hideRecipientEditor() {
         if (mRecipientsEditor != null) {
-//            mRecipientsEditor.removeTextChangedListener(mRecipientsWatcher);
+            mRecipientsEditor.removeTextChangedListener(mRecipientsWatcher);
             mRecipientsEditor.setVisibility(View.GONE);
             hideOrShowTopPanel();
         }
@@ -3075,17 +3055,6 @@ public class ComposeMessageActivity extends Activity
             return;
         }
 
-        if (MmsConfig.isSuportRcs() && RcsMiscInterface.isLogin()) {
-			switch (requestCode) {
-			case REQUEST_CODE_ATTACH_IMAGE:
-			case REQUEST_CODE_ATTACH_VIDEO:
-			case REQUEST_CODE_ATTACH_SOUND:
-				sendImFile(data.getData(), requestCode);
-				return;
-			default:
-				break;
-			}
-		}
         switch (requestCode) {
             case REQUEST_CODE_CREATE_SLIDESHOW:
                 if (data != null) {
@@ -3886,11 +3855,6 @@ public class ComposeMessageActivity extends Activity
     }
 
     private void sendMessage(boolean bCheckEcmMode) {
-    	if (MmsConfig.isSuportRcs() && RcsMiscInterface.isLogin()) {
-    		sendImMessage();
-        	return;
-		}
-    	
         if (bCheckEcmMode) {
             // TODO: expose this in telephony layer for SDK build
             String inEcm = SystemProperties.get(TelephonyProperties.PROPERTY_INECM_MODE);
@@ -3927,7 +3891,7 @@ public class ComposeMessageActivity extends Activity
             // them back once the recipient list has settled.
             removeRecipientsListeners();
 
-			mWorkingMessage.send(mDebugRecipients);
+            mWorkingMessage.send(mDebugRecipients);
 
             mSentMessage = true;
             mSendingMessage = true;
@@ -3940,156 +3904,7 @@ public class ComposeMessageActivity extends Activity
             finish();
         }
     }
-    
-    private List<String> getRecipient() {
-    	List<String> recipients = new ArrayList<String>();
-		if (isRecipientsEditorVisible()) {
-			recipients = mRecipientsEditor.getNumbers();
-		} else {
-			ContactList contactList = mWorkingMessage.getConversation()
-					.getRecipients();
-			String[] numbers = contactList.getNumbers();
-			int count = numbers.length;
-			for (int i = 0; i < count; i++) {
-				recipients.add(numbers[i]);
-			}
-		}
-		return recipients;
-    }
 
-	private void sendImMessage() {
-		long threadId = -1;
-		String[] dests = null;
-
-		String msgText = mWorkingMessage.getText().toString();
-		RcsSessionManager rsm = RcsSessionManager.getDefault(this);
-		List<String> recipients = getRecipient();
-		if (mIsGrpChat) {
-			dests = new String[1];
-			dests[0] = RcsMiscInterface.getUserSelf(1);
-			threadId = mConversation.getThreadId();
-		} else {
-			if (recipients == null || recipients.size() == 0) {
-				return;
-			}
-			int size = recipients.size();
-			dests = (String[]) recipients.toArray(new String[size]);
-			threadId = mConversation.getOrCreateThreadId(this, dests[0]);
-		}
-		
-		RcsMessageSender sender = new RcsMessageSender(this, dests, msgText, threadId, 0);
-		if (mIsGrpChat) {
-			RcsSessionEntity entity = rsm.getGrpEntity(mGrpChatId);
-			if (entity == null) {
-				int cookie = sender.saveMessage(mGrpChatId);
-				StringBuffer imdnId = new StringBuffer();
-				if (mGroupsModel == null) {
-					mGroupsModel = getModelGroups(threadId);
-				}
-				int sessId = RcsMiscInterface.imSessReJoinGrpContainMsg(cookie,
-						mGroupsModel.getGroup_chat_id(),
-						mGroupsModel.getSession_idertity(), msgText, imdnId, 1);
-				
-				rsm.setGrpEntity(sessId, "", mGroupsModel);
-				mTextEditor.setText("");
-				
-				return;
-			}
-			
-			int sessId = rsm.getGrpChatSessId(mGrpChatId);
-			try {
-				sender.sendMessage((long) 1, sessId, mGrpChatId);
-			} catch (MmsException e) {
-				e.printStackTrace();
-			}
-		} else {
-			boolean impageMode = MessagingPreferenceActivity.getRcsImType(this);
-			if (impageMode) {
-				try {
-					sender.sendMessage((long) 1);
-				} catch (MmsException e) {
-					e.printStackTrace();
-				}
-
-			} else {
-				int sessId = rsm.getSessId(dests[0]);
-				if (sessId > 0) {
-					try {
-						sender.sendMessage((long) 1, sessId);
-					} catch (MmsException e) {
-						e.printStackTrace();
-					}
-				} else {
-					int msgId = sender.saveMessage();
-					StringBuffer sb = new StringBuffer();
-					sessId = rsm.createSessContainMsg(msgId, "test_rcs", msgText, dests[0], sb, 1);
-					if (sessId > 0) {
-						RcsModelMessage rmm = new RcsModelMessage();
-						String imdn = sb.toString();
-						rmm.setImdn_string(imdn);
-						rmm.setType(Outbox.MESSAGE_BOX_SENT);
-						RcsProviderInterface.updateMessage(this, rmm.getContentValues(), msgId);
-					} else {
-						Toast.makeText(this, "创建会话失败", Toast.LENGTH_SHORT).show(); 
-					}
-				}
-			}
-		}
-		
-		mTextEditor.setText("");
-		
-		ContactList list = isRecipientsEditorVisible() ?
-                mRecipientsEditor.constructContactsFromInput(false) : getRecipients();
-        updateTitle(list);
-        
-        hideRecipientEditor();
-	}
-
-	private void sendImFile(final Uri uri, int type) {
-		long threadId = -1;
-		String[] dests = null;
-		RcsSessionManager rsm = RcsSessionManager.getDefault(this);
-		List<String> recipients = getRecipient();
-		if (mIsGrpChat) {
-			dests = new String[1];
-			dests[0] = RcsMiscInterface.getUserSelf(1);
-			threadId = mConversation.getThreadId();
-		} else {
-			if (recipients == null || recipients.size() == 0) {
-				return;
-			}
-			int size = recipients.size();
-			dests = (String[]) recipients.toArray(new String[size]);
-			threadId = mConversation.getOrCreateThreadId(this, dests[0]);
-		}
-		
-		String filepath = RcsFileUtil.getPath(this, uri);
-		String fileType = RcsFileUtil.getFileTypeFromUri(filepath);
-		int sendType = RcsTransaction.RCS_SEND_FILE_TRANSACTION;
-		if (mIsGrpChat) {
-			sendType = RcsTransaction.RCS_SEND_GRP_FILE_TRANSACTION;
-		}
-		RcsFileSender sender = new RcsFileSender(this, dests, filepath, fileType, threadId, sendType);
-		try {
-			if (mIsGrpChat) {
-				if (mGroupsModel == null) {
-					mGroupsModel = getModelGroups(threadId);
-				}
-				sender.sendFile(threadId, mGroupsModel.getGroup_chat_id(), mGroupsModel.getSession_idertity());
-			} else {
-				sender.sendFile(threadId);
-			}
-		} catch (MmsException e) {
-			e.printStackTrace();
-		}
-		
-		ContactList list = isRecipientsEditorVisible() ?
-                mRecipientsEditor.constructContactsFromInput(false) : getRecipients();
-        updateTitle(list);
-        
-        hideRecipientEditor();
-	}
-	
     private void resetMessage() {
         if (Log.isLoggable(LogTag.APP, Log.VERBOSE)) {
             log("resetMessage");
@@ -4158,8 +3973,7 @@ public class ComposeMessageActivity extends Activity
         } else if (null != mAttachmentEditor){
             mAttachmentEditor.setCanSend(false);
         }
-        
-        enable = true;
+
         boolean requiresMms = mWorkingMessage.requiresMms();
         View sendButton = showSmsOrMmsSendButton(requiresMms);
         sendButton.setEnabled(enable);
@@ -4183,105 +3997,65 @@ public class ComposeMessageActivity extends Activity
         return NO_DATE_FOR_DIALOG;
     }
 
-	private void initActivityState(Bundle bundle) {
-		Intent intent = getIntent();
-		if (bundle != null) {
-			setIntent(getIntent().setAction(Intent.ACTION_VIEW));
-			String recipients = bundle.getString(RECIPIENTS);
-			if (LogTag.VERBOSE)
-				log("get mConversation by recipients " + recipients);
-			mConversation = Conversation.get(this,
-					ContactList.getByNumbers(recipients,
-							false /* don't block */, true /* replace number */),
-					false);
-			addRecipientsListeners();
-			mSendDiscreetMode = bundle.getBoolean(KEY_EXIT_ON_SENT, false);
-			mForwardMessageMode = bundle.getBoolean(KEY_FORWARDED_MESSAGE,
-					false);
+    private void initActivityState(Bundle bundle) {
+        Intent intent = getIntent();
+        if (bundle != null) {
+            setIntent(getIntent().setAction(Intent.ACTION_VIEW));
+            String recipients = bundle.getString(RECIPIENTS);
+            if (LogTag.VERBOSE) log("get mConversation by recipients " + recipients);
+            mConversation = Conversation.get(this,
+                    ContactList.getByNumbers(recipients,
+                            false /* don't block */, true /* replace number */), false);
+            addRecipientsListeners();
+            mSendDiscreetMode = bundle.getBoolean(KEY_EXIT_ON_SENT, false);
+            mForwardMessageMode = bundle.getBoolean(KEY_FORWARDED_MESSAGE, false);
 
-			if (mSendDiscreetMode) {
-				mMsgListView.setVisibility(View.INVISIBLE);
-			}
-			mWorkingMessage.readStateFromBundle(bundle);
+            if (mSendDiscreetMode) {
+                mMsgListView.setVisibility(View.INVISIBLE);
+            }
+            mWorkingMessage.readStateFromBundle(bundle);
 
-			return;
-		}
+            return;
+        }
 
-		// If we have been passed a thread_id, use that to find our
-		// conversation.
+        // If we have been passed a thread_id, use that to find our conversation.
+        long threadId = intent.getLongExtra(THREAD_ID, 0);
+        if (threadId > 0) {
+            if (LogTag.VERBOSE) log("get mConversation by threadId " + threadId);
+            mConversation = Conversation.get(this, threadId, false);
+        } else {
+            Uri intentData = intent.getData();
+            if (intentData != null) {
+                // try to get a conversation based on the data URI passed to our intent.
+                if (LogTag.VERBOSE) log("get mConversation by intentData " + intentData);
+                mConversation = Conversation.get(this, intentData, false);
+                mWorkingMessage.setText(getBody(intentData));
+            } else {
+                // special intent extra parameter to specify the address
+                String address = intent.getStringExtra("address");
+                if (!TextUtils.isEmpty(address)) {
+                    if (LogTag.VERBOSE) log("get mConversation by address " + address);
+                    mConversation = Conversation.get(this, ContactList.getByNumbers(address,
+                            false /* don't block */, true /* replace number */), false);
+                } else {
+                    if (LogTag.VERBOSE) log("create new conversation");
+                    mConversation = Conversation.createNew(this);
+                }
+            }
+        }
+        addRecipientsListeners();
+        updateThreadIdIfRunning();
 
-		long threadId = intent.getLongExtra(THREAD_ID, 0);
-		if (threadId > 0) {
-			if (LogTag.VERBOSE)
-				log("get mConversation by threadId " + threadId);
-			mConversation = Conversation.get(this, threadId, false);
-		} else {
-			Uri intentData = intent.getData();
-			if (intentData != null) {
-				// try to get a conversation based on the data URI passed to our
-				// intent.
-				if (LogTag.VERBOSE)
-					log("get mConversation by intentData " + intentData);
-				mConversation = Conversation.get(this, intentData, false);
-				mWorkingMessage.setText(getBody(intentData));
-
-				threadId = mConversation.getThreadId();
-				mGroupsModel = getModelGroups(threadId);
-				if (mGroupsModel != null) {
-					mIsGrpChat = true;
-				}
-			} else {
-				String address;
-				boolean mIsGrpChat = intent.getBooleanExtra(GRP_CHAT, false);
-				if (mIsGrpChat) {
-					mGrpChatId = intent.getStringExtra(GRP_CHAT_ID);
-					RcsSessionManager.getDefault(this).setmStatelistener(this);
-					String selfuser = RcsMiscInterface.getUserSelf(1);
-					String subject = intent.getStringExtra(GRP_SUBJECT);
-					address = intent.getStringExtra(GRP_RECIPIENTS);
-					address = selfuser + ";" + address;
-
-					hideRecipientEditor();
-
-					createGrpChat(subject, address);
-
-				} else {
-					// special intent extra parameter to specify the address
-					address = intent.getStringExtra("address");
-				}
-
-				if (!TextUtils.isEmpty(address)) {
-					if (LogTag.VERBOSE)
-						log("get mConversation by address " + address);
-					mConversation = Conversation.get(this, ContactList.getByNumbers
-							(address, false /* don't block */, true /* * replace* number */), false);
-				} else {
-					if (LogTag.VERBOSE)
-						log("create new conversation");
-					mConversation = Conversation.createNew(this);
-				}
-			}
-
-		}
-
-		if (mIsGrpChat) {
-
-		} else {
-			addRecipientsListeners();
-			updateThreadIdIfRunning();
-
-			mSendDiscreetMode = intent.getBooleanExtra(KEY_EXIT_ON_SENT, false);
-			mForwardMessageMode = intent.getBooleanExtra(KEY_FORWARDED_MESSAGE,
-					false);
-			if (mSendDiscreetMode) {
-				mMsgListView.setVisibility(View.INVISIBLE);
-			}
-			if (intent.hasExtra("sms_body")) {
-				mWorkingMessage.setText(intent.getStringExtra("sms_body"));
-			}
-			mWorkingMessage.setSubject(intent.getStringExtra("subject"), false);
-		}
-	}
+        mSendDiscreetMode = intent.getBooleanExtra(KEY_EXIT_ON_SENT, false);
+        mForwardMessageMode = intent.getBooleanExtra(KEY_FORWARDED_MESSAGE, false);
+        if (mSendDiscreetMode) {
+            mMsgListView.setVisibility(View.INVISIBLE);
+        }
+        if (intent.hasExtra("sms_body")) {
+            mWorkingMessage.setText(intent.getStringExtra("sms_body"));
+        }
+        mWorkingMessage.setSubject(intent.getStringExtra("subject"), false);
+    }
 
     private void initFocus() {
         if (!mIsKeyboardOpen) {
@@ -4291,12 +4065,12 @@ public class ComposeMessageActivity extends Activity
         // If the recipients editor is visible, there is nothing in it,
         // and the text editor is not already focused, focus the
         // recipients editor.
-//        if (isRecipientsEditorVisible()
-//                && TextUtils.isEmpty(mRecipientsEditor.getText())
-//                && !mTextEditor.isFocused()) {
-//            mRecipientsEditor.requestFocus();
-//            return;
-//        }
+        if (isRecipientsEditorVisible()
+                && TextUtils.isEmpty(mRecipientsEditor.getText())
+                && !mTextEditor.isFocused()) {
+            mRecipientsEditor.requestFocus();
+            return;
+        }
 
         // If we decided not to focus the recipients editor, focus the text editor.
         mTextEditor.requestFocus();
@@ -4707,142 +4481,4 @@ public class ComposeMessageActivity extends Activity
         }
         // If we're not running, but resume later, the current thread ID will be set in onResume()
     }
-    
-    private void createGrpChat(String subject, String recipients) {
-    	int phoneId = 1;
-    	int ret = 0;
-    	String[] dests = recipients.replaceAll(",", ";").split(";");
-    	int grpId = RcsMiscInterface.tmpGrpCreate(RcsMiscInterface.USER_TYPE_TMP_GRP, phoneId);
-    	for (int i = 0; i < dests.length; i++) {
-    		ret = RcsMiscInterface.tmpGrpAddUser(grpId, dests[i], dests[i], phoneId);
-		}
-    	
-//    	int ret = RcsMiscInterface.tmpGrpAddUser(grpId, selfuser, selfuser, phoneId);
-    	ret = RcsMiscInterface.createTmpGroupSess(1, subject, grpId, phoneId);
-    	Log.d(TAG, "createTmpGroupSess ret = " + ret);
-    	
-    	// 2
-//    	RcsModelGroups groups = new RcsModelGroups();
-//    	groups.setGroup_chat_id(recipients);
-//    	groups.setName(subject);
-//    	RcsProviderInterface.insertGroups(mContext, groups.getValues());
-    }
-
-    public RcsModelGroups getModelGroups(long threadId) {
-    	// 查group表
-    	RcsModelGroups groupsModel = null;
-        Cursor cursorGroups = null;
-        try {
-            cursorGroups = RcsProviderInterface.queryGroups(mContext, "thread_id=" + threadId, RcsModelGroups.GROUPS_ARRAY);
-            if (cursorGroups != null && cursorGroups.getCount() > 0) {
-            	mIsGrpChat = true;
-                if (cursorGroups.moveToFirst()) {
-                	groupsModel = new RcsModelGroups();
-                	groupsModel.setName(cursorGroups.getString(0));
-                	groupsModel.setType(cursorGroups.getInt(1));
-                	groupsModel.setOrganicer_phone(cursorGroups.getString(2));
-                	groupsModel.setBegin_time(cursorGroups.getLong(3));
-                	groupsModel.setEnd_time(cursorGroups.getLong(4));
-                	groupsModel.setDuration(cursorGroups.getString(5));
-                	groupsModel.setThread_id(cursorGroups.getInt(6));
-                	groupsModel.setGroup_id(cursorGroups.getString(7));
-                	groupsModel.setSession_idertity(cursorGroups.getString(8));
-                	groupsModel.setGroup_chat_id(cursorGroups.getString(9));
-                	groupsModel.setGroup_member(cursorGroups.getString(10));
-                } 
-    		}
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			if (cursorGroups != null) {
-				cursorGroups.close();
-			}
-		}
-
-        return groupsModel;
-    }
-    
-	@Override
-	public void sessStateChanged(int sessState, int userType, String grpChatId) {
-		if (userType == RcsMiscInterface.USER_TYPE_TMP_GRP) {
-			
-			mGrpChatId = grpChatId;
-			
-			// 2
-			long threadId = 0;
-			String name = "";
-			Cursor cursorGroups = null;
-			try {
-				cursorGroups = RcsProviderInterface.queryGroups(mContext, 	"group_chat_id='"+grpChatId + "'", RcsModelGroups.GROUPS_ARRAY);
-				if (cursorGroups == null || cursorGroups.getCount() == 0) {
-					return;
-				}
-				
-				if (cursorGroups.moveToFirst()) {
-					mGroupsModel = new RcsModelGroups();
-                	mGroupsModel.setName(cursorGroups.getString(0));
-                	mGroupsModel.setType(cursorGroups.getInt(1));
-                	mGroupsModel.setOrganicer_phone(cursorGroups.getString(2));
-                	mGroupsModel.setBegin_time(cursorGroups.getLong(3));
-                	mGroupsModel.setEnd_time(cursorGroups.getLong(4));
-                	mGroupsModel.setDuration(cursorGroups.getString(5));
-                	mGroupsModel.setThread_id(cursorGroups.getInt(6));
-                	mGroupsModel.setGroup_id(cursorGroups.getString(7));
-                	mGroupsModel.setSession_idertity(cursorGroups.getString(8));
-                	mGroupsModel.setGroup_chat_id(cursorGroups.getString(9));
-                	mGroupsModel.setGroup_member(cursorGroups.getString(10));
-                	
-					threadId = mGroupsModel.getThread_id();
-					name = mGroupsModel.getName();
-					if (TextUtils.isEmpty(name)) {
-						name = "群聊";
-					}
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
-			} finally {
-				if (cursorGroups != null ) {
-					cursorGroups.close();
-				}
-			}
-			
-			// 用threadid把recipientId查出来
-			long recipientId = 0;
-			
-			 Cursor cursor = mContext.getContentResolver().query(
-					 Threads.CONTENT_URI.buildUpon().appendQueryParameter("simple", "true").build(),
-					 new String [] {Threads.RECIPIENT_IDS},
-		                "_id=" + Long.toString(threadId), null, null);
-		        try {
-		            if (cursor.moveToFirst()) {
-		            	recipientId = cursor.getLong(0);
-		            } 
-		        } finally {
-		        	cursor.close();
-		        }
-			
-			
-			// 更新CanonicalAddresses表里的address字段为群聊的名称
-	        final ContentValues values = new ContentValues();
-	        values.put(Telephony.CanonicalAddressesColumns.ADDRESS, name);
-
-	        final StringBuilder buf = new StringBuilder(Telephony.CanonicalAddressesColumns._ID);
-	        buf.append('=').append(recipientId);
-
-	        final Uri uri = ContentUris.withAppendedId(Uri.parse("content://mms-sms/canonical-address"), recipientId);
-	        final ContentResolver cr = mContext.getContentResolver();
-
-	        new Thread("updateCanonicalAddressInDb") {
-	            public void run() {
-	                cr.update(uri, values, buf.toString(), null);
-	            }
-	        }.start();
-	        
-	        
-	        
-			mConversation =new Conversation(mContext, threadId, false);
-			loadMessageContent();
-		}
-		
-	}
 }

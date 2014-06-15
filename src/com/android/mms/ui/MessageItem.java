@@ -106,20 +106,6 @@ public class MessageItem {
     int mMmsStatus;
     Cursor mCursor;
     ColumnsMap mColumnsMap;
-    
-//    Rcs File
-    String mFileName;
-    String mFileType;
-    String mFilePath;
-    String mFileTransId;
-    int mFileSize;
-    int mFileSendSize;
-    int mFileRecvSize;
-    String mImdnStr;
-    int mImdnType;
-    int mNotifyType;
-    int mHasThums;
-    
     private PduLoadedCallback mPduLoadedCallback;
     private ItemLoadedFuture mItemLoadedFuture;
 
@@ -175,21 +161,6 @@ public class MessageItem {
 
             mLocked = cursor.getInt(columnsMap.mColumnSmsLocked) != 0;
             mErrorCode = cursor.getInt(columnsMap.mColumnSmsErrorCode);
-            
-            // Rcs 
-            mFilePath = cursor.getString(columnsMap.mColumnRcsFilePath);
-            if (!TextUtils.isEmpty(mFilePath)) {
-            	mFileName = cursor.getString(columnsMap.mColumnRcsFileName);
-            	mFileType = cursor.getString(columnsMap.mColumnRcsFileType);
-            	mFileTransId = cursor.getString(columnsMap.mColumnRcsFileTransid);
-            	mFileSize = cursor.getInt(columnsMap.mColumnRcsFileSize);
-            	mFileSize = cursor.getInt(columnsMap.mColumnRcsSendSize);
-            	mFileSize = cursor.getInt(columnsMap.mColumnRcsRecvSize);
-            	mImdnStr = cursor.getString(columnsMap.mColumnRcsImdnStr);
-            	mImdnType = cursor.getInt(columnsMap.mColumnRcsImdnType);
-            	mNotifyType = cursor.getInt(columnsMap.mColumnRcsNotifyType);
-            	mHasThums = cursor.getInt(columnsMap.mColumnRcsHasThums);
-			}
         } else if ("mms".equals(type)) {
             mMessageUri = ContentUris.withAppendedId(Mms.CONTENT_URI, mMsgId);
             mBoxId = cursor.getInt(columnsMap.mColumnMmsMessageBox);

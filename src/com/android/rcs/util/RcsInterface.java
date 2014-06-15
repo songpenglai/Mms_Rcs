@@ -5,24 +5,14 @@ import android.os.Bundle;
 import android.os.RemoteException;
 
 import com.android.mms.MmsApp;
-import com.rcs.telephony.ims.RCSServiceStateListener;
-import com.rcs.telephony.ims.common.RcsCommonManager;
-import com.rcs.telephony.ims.im.ImManager;
-import com.rcs.telephony.ims.im.PartpInfo;
+import com.yulong.telephony.ims.im.ImManager;
+import com.yulong.telephony.ims.im.PartpInfo;
 
 
-public class RcsMiscInterface {
+public class RcsInterface {
 
 	private static String TAG = "RcsInterface";
-	
-	public static final int USER_TYPE_SINGLE_CHAT = 0;
-
-	public static final int USER_TYPE_GRP = 1;
-
-	public static final int USER_TYPE_TMP_GRP =2;
-	
-	private static boolean isLogin = false;
-	
+	private static String RCS_MESSAGE_RECEIVER = "com.android.rcs.message.RECEIVER";
 	
 	private static Context mContext = MmsApp.getApplication().getApplicationContext();
 	public static int acceptFileTrans(int sessId, String fileName, int phoneId) {
@@ -735,43 +725,5 @@ public class RcsMiscInterface {
 		}
 
 		return ret;
-	}
-	
-	public static boolean isLogin() {
-		return isLogin;
-	}
-	
-	public static void initRcsState(final Context context) {
-		ImManager im = ImManager.getDefault(context);
-		im.setLinster(new RCSServiceStateListener() {
-			
-			@Override
-			public void notifyRcsServiceState(int arg0) {
-				if ((arg0 & RCSServiceStateListener.RCS_COMMON_OK) != 0) {
-					RcsCommonManager rcm = RcsCommonManager.getDefault(context);
-					int state;
-					try {
-						state = rcm.queryLoginState();
-						if (state == 2) {
-							isLogin = true;
-						}
-					} catch (RemoteException e) {
-						e.printStackTrace();
-					}
-					
-				}
-				
-			}
-			
-			@Override
-			public void notifyRcsAllStandBy(int loginSta) {
-				if (loginSta == 1) {
-					isLogin = true;
-				} else {
-					isLogin = false;
-				}
-			}
-		});
-		
 	}
 }

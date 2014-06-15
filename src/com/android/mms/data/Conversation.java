@@ -113,7 +113,7 @@ public class Conversation {
         mThreadId = 0;
     }
 
-    public Conversation(Context context, long threadId, boolean allowQuery) {
+    private Conversation(Context context, long threadId, boolean allowQuery) {
         if (DEBUG) {
             Log.v(TAG, "Conversation constructor threadId: " + threadId);
         }

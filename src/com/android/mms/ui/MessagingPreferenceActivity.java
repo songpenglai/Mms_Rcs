@@ -37,8 +37,9 @@ import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.preference.RingtonePreference;
 import android.provider.SearchRecentSuggestions;
+import android.telephony.MSimSmsManager;
+import android.telephony.MSimTelephonyManager;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -68,9 +69,6 @@ public class MessagingPreferenceActivity extends PreferenceActivity
     public static final String RETRIEVAL_DURING_ROAMING = "pref_key_mms_retrieval_during_roaming";
     public static final String AUTO_DELETE              = "pref_key_auto_delete";
     public static final String GROUP_MMS_MODE           = "pref_key_mms_group_mms";
-    
-
-    public static final String RCS_IM_SEND_TYPE           = "pref_key_rcs_im_send_type";
 
     // Menu entries
     private static final int MENU_RESTORE_DEFAULTS    = 1;
@@ -83,7 +81,6 @@ public class MessagingPreferenceActivity extends PreferenceActivity
     private PreferenceCategory mSmsPrefCategory;
     private PreferenceCategory mMmsPrefCategory;
     private PreferenceCategory mNotificationPrefCategory;
-    private PreferenceCategory mRcsPrefCategory;
 
     private Preference mSmsLimitPref;
     private Preference mSmsDeliveryReportPref;
@@ -99,9 +96,6 @@ public class MessagingPreferenceActivity extends PreferenceActivity
     private RingtonePreference mRingtonePref;
     private Recycler mSmsRecycler;
     private Recycler mMmsRecycler;
-    
-    private CheckBoxPreference mRcsImTypePref;
-    
     private static final int CONFIRM_CLEAR_SEARCH_HISTORY_DIALOG = 3;
 
     // Whether or not we are currently enabled for SMS. This field is updated in onResume to make
@@ -163,10 +157,7 @@ public class MessagingPreferenceActivity extends PreferenceActivity
         mMmsPrefCategory = (PreferenceCategory)findPreference("pref_key_mms_settings");
         mNotificationPrefCategory =
                 (PreferenceCategory)findPreference("pref_key_notification_settings");
-        mRcsPrefCategory =
-                (PreferenceCategory)findPreference("pref_key_rcs_settings");
-        
-        
+
         mManageSimPref = findPreference("pref_key_manage_sim_messages");
         mSmsLimitPref = findPreference("pref_key_sms_delete_limit");
         mSmsDeliveryReportPref = findPreference("pref_key_sms_delivery_reports");
@@ -179,23 +170,7 @@ public class MessagingPreferenceActivity extends PreferenceActivity
         mMmsAutoRetrievialPref = (CheckBoxPreference) findPreference(AUTO_RETRIEVAL);
         mVibratePref = (CheckBoxPreference) findPreference(NOTIFICATION_VIBRATE);
         mRingtonePref = (RingtonePreference) findPreference(NOTIFICATION_RINGTONE);
-        
-        // Rcs
-        mRcsImTypePref = (CheckBoxPreference) findPreference(RCS_IM_SEND_TYPE);
-        mRcsImTypePref.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
-			
-			@Override
-			public boolean onPreferenceChange(Preference arg0, Object arg1) {
-				Log.d("test", "");
-				boolean isChecked = (Boolean) arg1;
-				if (isChecked) {
-					mRcsImTypePref.setSummary(R.string.pref_title_im_type_page);
-				} else {
-					mRcsImTypePref.setSummary(R.string.pref_title_im_type_session);
-				}
-				return true;
-			}
-		});
+
         setMessagePreferences();
     }
 
@@ -246,13 +221,13 @@ public class MessagingPreferenceActivity extends PreferenceActivity
             }
         }
 
-//        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
-//            int preferredSmsSub = MSimSmsManager.getDefault()
-//                    .getPreferredSmsSubscription();
-//            mManageSimPref.setSummary(
-//                    getString(R.string.pref_summary_manage_sim_messages)
-//                    + (preferredSmsSub + 1));
-//        }
+        if (MSimTelephonyManager.getDefault().isMultiSimEnabled()) {
+            int preferredSmsSub = MSimSmsManager.getDefault()
+                    .getPreferredSmsSubscription();
+            mManageSimPref.setSummary(
+                    getString(R.string.pref_summary_manage_sim_messages)
+                    + (preferredSmsSub + 1));
+        }
 
         setEnabledNotificationsPref();
 
@@ -454,14 +429,5 @@ public class MessagingPreferenceActivity extends PreferenceActivity
         return MmsConfig.getGroupMmsEnabled() &&
                 groupMmsPrefOn &&
                 !TextUtils.isEmpty(MessageUtils.getLocalNumber());
-    }
-    
-    // pageMode£ºtrue£»  SessionMode£ºfasle
-    public static boolean getRcsImType(Context context) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean groupMmsPrefOn = prefs.getBoolean(
-                MessagingPreferenceActivity.RCS_IM_SEND_TYPE, true);
-        
-        return groupMmsPrefOn;
     }
 }

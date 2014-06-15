@@ -1,9 +1,11 @@
 package com.android.rcs.message;
 
+import java.util.HashMap;
+
+import android.R.integer;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 
 public class RcsMessageBroadcastReceiver extends BroadcastReceiver {
@@ -13,11 +15,9 @@ public class RcsMessageBroadcastReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		String action = intent.getAction();
-		Log.d(TAG, "action = " + action);
-		
-		Intent messageServiceIntent = new Intent(intent);
-		messageServiceIntent.setClass(context, RcsMessageService.class);
-		context.startService(messageServiceIntent);
+		if (!action.equals(RCS_MESSAGE_RECEIVER)) {
+            return;
+        }
 	}
 	
 }

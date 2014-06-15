@@ -24,17 +24,24 @@ import android.content.Context;
 import android.provider.Telephony.Mms;
 import android.telephony.PhoneNumberUtils;
 import android.text.Annotation;
+import android.text.Editable;
+import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.text.util.Rfc822Token;
 import android.text.util.Rfc822Tokenizer;
 import android.util.AttributeSet;
 import android.view.ContextMenu.ContextMenuInfo;
-import android.widget.EditText;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.widget.AdapterView;
 import android.widget.MultiAutoCompleteTextView;
 
+import com.android.ex.chips.RecipientEditTextView;
 import com.android.mms.MmsConfig;
 import com.android.mms.data.Contact;
 import com.android.mms.data.ContactList;
@@ -42,43 +49,122 @@ import com.android.mms.data.ContactList;
 /**
  * Provide UI for editing the recipients of multi-media messages.
  */
-public class RecipientsEditor extends EditText {
-
-
-	private int mLongPressedPosition = -1;
+public class RecipientsEditor extends RecipientEditTextView {
+    private int mLongPressedPosition = -1;
+    private final RecipientsEditorTokenizer mTokenizer;
     private char mLastSeparator = ',';
     private Runnable mOnSelectChipRunnable;
-    
-    public RecipientsEditor(Context context) {
-		super(context);
-	}
+    private final AddressValidator mInternalValidator;
+
+    /** A noop validator that does not munge invalid texts and claims any address is valid */
+    private class AddressValidator implements Validator {
+        public CharSequence fixText(CharSequence invalidText) {
+            return invalidText;
+        }
+
+        public boolean isValid(CharSequence text) {
+            return true;
+        }
+    }
+
     public RecipientsEditor(Context context, AttributeSet attrs) {
         super(context, attrs);
+
+        mTokenizer = new RecipientsEditorTokenizer();
+        setTokenizer(mTokenizer);
+
+        mInternalValidator = new AddressValidator();
+        super.setValidator(mInternalValidator);
+
+        // For the focus to move to the message body when soft Next is pressed
+        setImeOptions(EditorInfo.IME_ACTION_NEXT);
+
+        setThreshold(1);    // pop-up the list after a single char is typed
+
+        /*
+         * The point of this TextWatcher is that when the user chooses
+         * an address completion from the AutoCompleteTextView menu, it
+         * is marked up with Annotation objects to tie it back to the
+         * address book entry that it came from.  If the user then goes
+         * back and edits that part of the text, it no longer corresponds
+         * to that address book entry and needs to have the Annotations
+         * claiming that it does removed.
+         */
+        addTextChangedListener(new TextWatcher() {
+            private Annotation[] mAffected;
+
+            @Override
+            public void beforeTextChanged(CharSequence s, int start,
+                    int count, int after) {
+                mAffected = ((Spanned) s).getSpans(start, start + count,
+                        Annotation.class);
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start,
+                    int before, int after) {
+                if (before == 0 && after == 1) {    // inserting a character
+                    char c = s.charAt(start);
+                    if (c == ',' || c == ';') {
+                        // Remember the delimiter the user typed to end this recipient. We'll
+                        // need it shortly in terminateToken().
+                        mLastSeparator = c;
+                    }
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (mAffected != null) {
+                    for (Annotation a : mAffected) {
+                        s.removeSpan(a);
+                    }
+                }
+                mAffected = null;
+            }
+        });
     }
+
+    @Override
+    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        super.onItemClick(parent, view, position, id);
+
+        if (mOnSelectChipRunnable != null) {
+            mOnSelectChipRunnable.run();
+        }
+    }
+
     public void setOnSelectChipRunnable(Runnable onSelectChipRunnable) {
         mOnSelectChipRunnable = onSelectChipRunnable;
     }
 
+    @Override
+    public boolean enoughToFilter() {
+        if (!super.enoughToFilter()) {
+            return false;
+        }
+        // If the user is in the middle of editing an existing recipient, don't offer the
+        // auto-complete menu. Without this, when the user selects an auto-complete menu item,
+        // it will get added to the list of recipients so we end up with the old before-editing
+        // recipient and the new post-editing recipient. As a precedent, gmail does not show
+        // the auto-complete menu when editing an existing recipient.
+        int end = getSelectionEnd();
+        int len = getText().length();
+
+        return end == len;
+
+    }
+
     public int getRecipientCount() {
-    	List<String> numberList = getNumbers();
-        return numberList.size();
+        return mTokenizer.getNumbers().size();
     }
 
     public List<String> getNumbers() {
-    	ArrayList<String> numberList = new ArrayList<String>();
-    	String numbers = getText().toString();
-    	if (!TextUtils.isEmpty(numbers)) {
-    		numbers = numbers.replaceAll(",", ";");
-    		String[] recipients = numbers.split(";");
-    		for (String recipient : recipients) {
-    			numberList.add(recipient.trim());
-			}
-		}
-        return numberList;
+        return mTokenizer.getNumbers();
     }
 
     public ContactList constructContactsFromInput(boolean blocking) {
-        List<String> numbers = new ArrayList<String>();
+        List<String> numbers = mTokenizer.getNumbers();
         ContactList list = new ContactList();
         for (String number : numbers) {
             Contact contact = Contact.get(number, blocking);
@@ -102,8 +188,7 @@ public class RecipientsEditor extends EditText {
     }
 
     public boolean hasValidRecipient(boolean isMms) {
-    	List<String> numbers = new ArrayList<String>();
-        for (String number : numbers) {
+        for (String number : mTokenizer.getNumbers()) {
             if (isValidAddress(number, isMms))
                 return true;
         }
@@ -111,8 +196,7 @@ public class RecipientsEditor extends EditText {
     }
 
     public boolean hasInvalidRecipient(boolean isMms) {
-    	List<String> numbers = new ArrayList<String>();
-        for (String number : numbers) {
+        for (String number : mTokenizer.getNumbers()) {
             if (!isValidAddress(number, isMms)) {
                 if (MmsConfig.getEmailGateway() == null) {
                     return true;
@@ -125,9 +209,8 @@ public class RecipientsEditor extends EditText {
     }
 
     public String formatInvalidNumbers(boolean isMms) {
-    	List<String> numbers = new ArrayList<String>();
         StringBuilder sb = new StringBuilder();
-        for (String number : numbers) {
+        for (String number : mTokenizer.getNumbers()) {
             if (!isValidAddress(number, isMms)) {
                 if (sb.length() != 0) {
                     sb.append(", ");
@@ -139,6 +222,14 @@ public class RecipientsEditor extends EditText {
     }
 
     public boolean containsEmail() {
+        if (TextUtils.indexOf(getText(), '@') == -1)
+            return false;
+
+        List<String> numbers = mTokenizer.getNumbers();
+        for (String number : numbers) {
+            if (Mms.isEmailAddress(number))
+                return true;
+        }
         return false;
     }
 
@@ -157,7 +248,87 @@ public class RecipientsEditor extends EditText {
     }
 
     public void populate(ContactList list) {
-    	
+        // Very tricky bug. In the recipient editor, we always leave a trailing
+        // comma to make it easy for users to add additional recipients. When a
+        // user types (or chooses from the dropdown) a new contact Mms has never
+        // seen before, the contact gets the correct trailing comma. But when the
+        // contact gets added to the mms's contacts table, contacts sends out an
+        // onUpdate to CMA. CMA would recompute the recipients and since the
+        // recipient editor was still visible, call mRecipientsEditor.populate(recipients).
+        // This would replace the recipient that had a comma with a recipient
+        // without a comma. When a user manually added a new comma to add another
+        // recipient, this would eliminate the span inside the text. The span contains the
+        // number part of "Fred Flinstone <123-1231>". Hence, the whole
+        // "Fred Flinstone <123-1231>" would be considered the number of
+        // the first recipient and get entered into the canonical_addresses table.
+        // The fix for this particular problem is very easy. All recipients have commas.
+        // TODO: However, the root problem remains. If a user enters the recipients editor
+        // and deletes chars into an address chosen from the suggestions, it'll cause
+        // the number annotation to get deleted and the whole address (name + number) will
+        // be used as the number.
+        if (list.size() == 0) {
+            // The base class RecipientEditTextView will ignore empty text. That's why we need
+            // this special case.
+            setText(null);
+        } else {
+            for (Contact c : list) {
+                // Calling setText to set the recipients won't create chips,
+                // but calling append() will.
+                append(contactToToken(c) + ",");
+            }
+        }
+    }
+
+    private int pointToPosition(int x, int y) {
+        // Check layout before getExtendedPaddingTop().
+        // mLayout is used in getExtendedPaddingTop().
+        Layout layout = getLayout();
+        if (layout == null) {
+            return -1;
+        }
+
+        x -= getCompoundPaddingLeft();
+        y -= getExtendedPaddingTop();
+
+
+        x += getScrollX();
+        y += getScrollY();
+
+        int line = layout.getLineForVertical(y);
+        int off = layout.getOffsetForHorizontal(line, x);
+
+        return off;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        final int action = ev.getAction();
+        final int x = (int) ev.getX();
+        final int y = (int) ev.getY();
+
+        if (action == MotionEvent.ACTION_DOWN) {
+            mLongPressedPosition = pointToPosition(x, y);
+        }
+
+        return super.onTouchEvent(ev);
+    }
+
+    @Override
+    protected ContextMenuInfo getContextMenuInfo() {
+        if ((mLongPressedPosition >= 0)) {
+            Spanned text = getText();
+            if (mLongPressedPosition <= text.length()) {
+                int start = mTokenizer.findTokenStart(text, mLongPressedPosition);
+                int end = mTokenizer.findTokenEnd(text, start);
+
+                if (end != start) {
+                    String number = getNumberAt(getText(), start, end, getContext());
+                    Contact c = Contact.get(number, false);
+                    return new RecipientContextMenuInfo(c);
+                }
+            }
+        }
+        return null;
     }
 
     private static String getNumberAt(Spanned sp, int start, int end, Context context) {
@@ -277,44 +448,44 @@ public class RecipientsEditor extends EditText {
                 }
             }
         }
-        
-//        public List<String> getNumbers() {
-//            Spanned sp = RecipientsEditor.this.getText();
-//            int len = sp.length();
-//            List<String> list = new ArrayList<String>();
-//
-//            int start = 0;
-//            int i = 0;
-//            while (i < len + 1) {
-//                char c;
-//                if ((i == len) || ((c = sp.charAt(i)) == ',') || (c == ';')) {
-//                    if (i > start) {
-//                        list.add(getNumberAt(sp, start, i, getContext()));
-//
-//                        // calculate the recipients total length. This is so if the name contains
-//                        // commas or semis, we'll skip over the whole name to the next
-//                        // recipient, rather than parsing this single name into multiple
-//                        // recipients.
-//                        int spanLen = getSpanLength(sp, start, i, getContext());
-//                        if (spanLen > i) {
-//                            i = spanLen;
-//                        }
-//                    }
-//
-//                    i++;
-//
-//                    while ((i < len) && (sp.charAt(i) == ' ')) {
-//                        i++;
-//                    }
-//
-//                    start = i;
-//                } else {
-//                    i++;
-//                }
-//            }
-//
-//            return list;
-//        }
+
+        public List<String> getNumbers() {
+            Spanned sp = RecipientsEditor.this.getText();
+            int len = sp.length();
+            List<String> list = new ArrayList<String>();
+
+            int start = 0;
+            int i = 0;
+            while (i < len + 1) {
+                char c;
+                if ((i == len) || ((c = sp.charAt(i)) == ',') || (c == ';')) {
+                    if (i > start) {
+                        list.add(getNumberAt(sp, start, i, getContext()));
+
+                        // calculate the recipients total length. This is so if the name contains
+                        // commas or semis, we'll skip over the whole name to the next
+                        // recipient, rather than parsing this single name into multiple
+                        // recipients.
+                        int spanLen = getSpanLength(sp, start, i, getContext());
+                        if (spanLen > i) {
+                            i = spanLen;
+                        }
+                    }
+
+                    i++;
+
+                    while ((i < len) && (sp.charAt(i) == ' ')) {
+                        i++;
+                    }
+
+                    start = i;
+                } else {
+                    i++;
+                }
+            }
+
+            return list;
+        }
     }
 
     static class RecipientContextMenuInfo implements ContextMenuInfo {
